@@ -62,7 +62,9 @@ const formattedPrice = computed(() => {
       <!-- 3. Fiyat ve Buton Alanı -->
       <div class="card-footer">
         <span class="price">{{ formattedPrice }}</span>
-        <button class="action-btn">İncele</button>
+        <router-link :to="`/marketplace/${listing.id}`" class="action-btn" style="text-decoration: none; text-align: center;">
+          İncele
+        </router-link>
       </div>
     </div>
   </div>
