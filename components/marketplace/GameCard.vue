@@ -2,7 +2,6 @@
 <script setup>
 import { computed } from 'vue'
 
-// Sayfadan (Marketplace/Index) bu karta gönderilecek olan veri (props)
 const props = defineProps({
   listing: {
     type: Object,
@@ -10,181 +9,144 @@ const props = defineProps({
   }
 })
 
-// Veritabanındaki İngilizce kondisyon kodlarını Türkçeye ve renklere çeviren yardımcı (helper) obje
-const conditionInfo = computed(() => {
-  const conditions = {
-    new_in_shrink: { label: 'Sıfır (Jelatininde)', color: '#27ae60' }, // Yeşil
-    punched_unplayed: { label: 'Oynanmamış', color: '#2980b9' },      // Mavi
-    like_new: { label: 'Yeni Gibi', color: '#8e44ad' },               // Mor
-    good: { label: 'İyi', color: '#f39c12' },                         // Turuncu
-    fair: { label: 'Yıpranmış', color: '#e74c3c' }                    // Kırmızı
-  }
-  return conditions[props.listing.condition] || { label: 'Bilinmiyor', color: '#95a5a6' }
+// Fiyati TL formatına çevirme
+const formattedPrice = computed(() => {
+  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(props.listing.price)
 })
 
-// Fiyatı TL formatına çeviren fonksiyon (örn: 2500 -> 2.500,00 ₺)
-const formattedPrice = computed(() => {
-  return new Intl.NumberFormat('tr-TR', { 
-    style: 'currency', 
-    currency: 'TRY' 
-  }).format(props.listing.price)
+// Kondisyon metinlerini düzenleme
+const conditionText = computed(() => {
+  const conditions = {
+    new_in_shrink: 'Sıfır (Jelatininde)',
+    punched_unplayed: 'Oynanmamış',
+    like_new: 'Yeni Gibi',
+    good: 'İyi',
+    fair: 'Yıpranmış'
+  }
+  return conditions[props.listing.condition] || 'Belirtilmemiş'
 })
 </script>
 
 <template>
   <div class="game-card">
-    <!-- 1. Görsel ve Etiketler Alanı -->
+    <!-- Oyun Görseli Alanı -->
     <div class="card-image-wrapper">
-      <img :src="listing.games?.thumbnail_url" :alt="listing.games?.title" class="game-image" />
-      
-      <!-- Kondisyon Rozeti -->
-      <span class="badge condition-badge" :style="{ backgroundColor: conditionInfo.color }">
-        {{ conditionInfo.label }}
-      </span>
-      
-      <!-- Kart Koruyucu (Sleeve) Rozeti (Sadece varsa görünür) -->
-      <span v-if="listing.has_sleeves" class="badge sleeve-badge">
-        🃏 Sleeve'li
-      </span>
+      <img 
+        :src="listing.games?.thumbnail_url || 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=600&q=80'" 
+        :alt="listing.games?.title" 
+        class="card-img" 
+      />
+      <span class="price-tag">{{ formattedPrice }}</span>
     </div>
 
-    <!-- 2. İçerik ve Bilgi Alanı -->
-    <div class="card-content">
-      <h3 class="game-title">{{ listing.games.title }}</h3>
-
-      <div class="seller-info">
-        <span class="seller-name">👤 {{ listing.profiles.username }}</span>
-        <span class="seller-rep">⭐ {{ listing.profiles.reputation_score }}/100</span>
+    <!-- Kart İçeriği -->
+    <div class="card-body">
+      <h3 class="game-title">{{ listing.games?.title || 'İsimsiz Oyun' }}</h3>
+      
+      <div class="card-details">
+        <span class="detail-item"><strong>Kondisyon:</strong> {{ conditionText }}</span>
+        <span class="detail-item"><strong>Satıcı:</strong> {{ listing.profiles?.username || 'Topluluk Üyesi' }}</span>
       </div>
 
-      <p class="description">{{ listing.description }}</p>
-
-      <!-- 3. Fiyat ve Buton Alanı -->
-      <div class="card-footer">
-        <span class="price">{{ formattedPrice }}</span>
-        <router-link :to="`/marketplace/${listing.id}`" class="action-btn" style="text-decoration: none; text-align: center;">
-          İncele
-        </router-link>
-      </div>
+      <!-- İncele Butonu -->
+      <router-link :to="`/marketplace/${listing.id}`" class="action-btn">
+        İlanı İncele
+      </router-link>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Kartın Genel İskeleti */
 .game-card {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
   display: flex;
   flex-direction: column;
-  border: 1px solid #eaeaea;
+  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
 .game-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+  transform: translateY(-6px);
+  box-shadow: 0 15px 30px rgba(66, 185, 131, 0.12);
+  border-color: #42b983;
 }
 
-/* Görsel ve Rozetler */
 .card-image-wrapper {
   position: relative;
   height: 200px;
-  width: 100%;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #eaeaea;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+  overflow: hidden;
 }
 
-.game-image {
+.card-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.4s ease;
 }
 
-.badge {
+.game-card:hover .card-img {
+  transform: scale(1.05);
+}
+
+.price-tag {
   position: absolute;
-  padding: 4px 8px;
-  border-radius: 6px;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: bold;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(4px);
+  color: #51e8a2;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 }
 
-.condition-badge {
-  top: 10px;
-  left: 10px;
-}
-
-.sleeve-badge {
-  top: 10px;
-  right: 10px;
-  background-color: #34495e;
-}
-
-/* Metin İçerikleri */
-.card-content {
-  padding: 16px;
+.card-body {
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
 }
 
 .game-title {
-  margin: 0 0 8px 0;
+  margin: 0 0 0.75rem 0;
   font-size: 1.25rem;
-  color: #2c3e50;
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
-.seller-info {
+.card-details {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: #7f8c8d;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px dashed #ecf0f1;
-}
-
-.description {
-  font-size: 0.85rem;
-  color: #555;
-  margin-bottom: 16px;
-  /* Çok uzun açıklamaları 2 satırla sınırlandırıp sonuna üç nokta koyar */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex-grow: 1;
-}
-
-/* Fiyat ve Buton */
-.card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-}
-
-.price {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #e67e22;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  color: #64748b;
 }
 
 .action-btn {
+  display: block;
+  text-align: center;
   background-color: #42b983;
   color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.2s;
+  padding: 0.75rem;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(66, 185, 131, 0.3);
+  margin-top: auto;
 }
 
-.action-btn:hover {
+.action-box:hover, .action-btn:hover {
   background-color: #369c6d;
+  transform: translateY(-2px);
 }
 </style>

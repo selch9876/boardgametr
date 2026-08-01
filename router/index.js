@@ -27,6 +27,21 @@ const routes = [
   path: '/games',
   name: 'GamesCatalog',
   component: () => import('../pages/Games/Index.vue')
+  },
+  {
+  path: '/games/:id',
+  name: 'GameDetail',
+  component: () => import('../pages/Games/GameDetail.vue')
+  },
+  {
+  path: '/marketplace/create',
+  name: 'CreateListing',
+  component: () => import('../pages/Marketplace/Create.vue')
+  },
+  {
+  path: '/games/create',
+  name: 'CreateGame',
+  component: () => import('../pages/Games/Create.vue')
   }
 
 ]
