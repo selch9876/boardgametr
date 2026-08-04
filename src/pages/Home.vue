@@ -11,7 +11,7 @@ const router = useRouter()
     <section class="hero-section">
       <div class="hero-overlay"></div>
       <div class="hero-content">
-        <span class="badge">🎲 Türkiye'nin Masa Oyunu Kulübü</span>
+        <span class="badge">🎲 TÜRKİYE'NİN KUTU OYUN BULUŞMA NOKTASI</span>
         <h1>Masaya Oturmaya Hazır Mısın?</h1>
         <p>
           Koleksiyonunu genişlet, oynamadığın strateji oyunlarını diğer maceracılarla buluştur 

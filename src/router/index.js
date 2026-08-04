@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 // Sayfa bileşenlerini içeri aktarıyoruz
 import Home from '../pages/Home.vue'
 import MarketplaceIndex from '../pages/Marketplace/Index.vue'
+import EditListing from '../pages/Marketplace/EditListing.vue' // <-- Buraya ekleyin
 
 const routes = [
   {
@@ -21,6 +22,11 @@ const routes = [
     path: '/marketplace/:id', // :id kısmı bu rotanın dinamik olduğunu belirtir
     name: 'ListingDetail',
     component: () => import('../pages/Marketplace/ListingDetail.vue')
+  },
+  {
+    path: '/marketplace/:id/edit', // 2. Rota tanımını ekle
+    name: 'EditListing',
+    component: EditListing
   },
 
   {
@@ -47,6 +53,11 @@ const routes = [
   path: '/auth',
   name: 'Auth',
   component: () => import('../pages/Auth/Index.vue')
+  },
+  {
+  path: '/admin/games/:id/edit',
+  name: 'AdminGameEdit',
+  component: () => import('../pages/Admin/GameEdit.vue')
   }
 
 ]

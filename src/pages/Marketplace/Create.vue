@@ -15,6 +15,7 @@ const errorMessage = ref(null)
 // Arama ve Seçim İçin State'ler
 const gameSearchQuery = ref('')
 const isDropdownOpen = ref(false)
+const isPreselected = ref(false) // Detay sayfasından hazır gelip gelmediğini kontrol eder
 
 // Form Alanları
 const form = ref({
@@ -40,10 +41,12 @@ onMounted(async () => {
       
       if (matchedGame) {
         selectGame(matchedGame)
+        isPreselected.value = true // Hazır geldiği için arama ve katalog ekleme alanını kilitle/gizle
       } else if (urlGameTitle) {
         // Eğer ID listede direkt bulunamazsa ama title geldiyse arama alanına yaz
         gameSearchQuery.value = urlGameTitle
         form.value.game_id = urlGameId
+        isPreselected.value = true
       }
     }
   } else {
@@ -65,6 +68,13 @@ const selectGame = (game) => {
   form.value.game_id = game.id
   gameSearchQuery.value = game.title
   isDropdownOpen.value = false
+}
+
+// Input odak kaybettiğinde listenin kapanması için gecikmeli kontrol
+const handleBlur = () => {
+  setTimeout(() => {
+    isDropdownOpen.value = false
+  }, 200)
 }
 
 const handleSubmit = async () => {
@@ -112,11 +122,20 @@ const handleSubmit = async () => {
         <!-- Akıllı Oyun Arama ve Seçim Alanı -->
         <div class="form-group dropdown-container">
           <label>Hangi Oyunu Satıyorsun? *</label>
-          <div class="search-select-box">
+
+          <!-- Eğer oyun detayından hazır geldiyse sadece seçilen oyunun adını gösteren kilitli kutu -->
+          <div v-if="isPreselected" class="preselected-game-box">
+            <span>🎲 <strong>{{ gameSearchQuery }}</strong></span>
+            <span class="locked-badge">Seçildi</span>
+          </div>
+
+          <!-- Eğer serbest gelindiyse arama yapılabilen input alanı -->
+          <div v-else class="search-select-box">
             <input 
               type="text" 
               v-model="gameSearchQuery" 
               @focus="isDropdownOpen = true"
+              @blur="handleBlur"
               placeholder="Katalogda oyun arayın (örn: Catan, Scythe...)" 
               class="form-input"
               autocomplete="off"
@@ -139,7 +158,8 @@ const handleSubmit = async () => {
             </div>
           </div>
 
-          <div class="not-found-hint">
+          <!-- Kataloğa Ekle İpucu: Sadece serbest arama yapıldığında görünür -->
+          <div v-if="!isPreselected" class="not-found-hint">
             Aradığın oyun listede yok mu? 
             <router-link to="/games/create" class="inline-link">Hemen Kataloğa Ekle →</router-link>
           </div>
@@ -284,6 +304,28 @@ const handleSubmit = async () => {
   outline: none;
   border-color: #42b983;
   box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.15);
+}
+
+/* Önceden Seçilmiş / Kilitli Oyun Kutusu */
+.preselected-game-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #1e293b;
+  font-size: 1rem;
+}
+
+.locked-badge {
+  font-size: 0.75rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 700;
 }
 
 /* Akıllı Arama Dropdown Listesi */

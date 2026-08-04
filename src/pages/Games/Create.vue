@@ -8,6 +8,7 @@ const router = useRouter()
 
 const categories = ref([])
 const isSubmitting = ref(false)
+const isUploading = ref(false)
 const errorMessage = ref(null)
 
 const form = ref({
@@ -30,6 +31,24 @@ onMounted(async () => {
     }
   }
 })
+
+// Bilgisayardan görsel seçip Supabase Storage'a yükleme fonksiyonu
+const handleFileUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  isUploading.value = true
+  errorMessage.value = null
+
+  const response = await marketService.uploadGameThumbnail(file)
+  isUploading.value = false
+
+  if (response.success) {
+    form.value.thumbnail_url = response.url
+  } else {
+    errorMessage.value = 'Görsel yüklenemedi: ' + response.error
+  }
+}
 
 const handleSubmit = async () => {
   if (!form.value.title.trim()) {
@@ -59,7 +78,7 @@ const handleSubmit = async () => {
 
     <div class="form-card">
       <h2>Kataloğa Yeni Oyun Ekle</h2>
-      <p class="subtitle">Oyunun detaylarını ve kategorisini seçerek topluluğa katkıda bulun.</p>
+      <p class="subtitle">Oyunun detaylarını, kategorisini ve görselini ekleyerek topluluğa katkıda bulun.</p>
 
       <div v-if="errorMessage" class="error-banner">{{ errorMessage }}</div>
 
@@ -75,14 +94,30 @@ const handleSubmit = async () => {
           />
         </div>
 
+        <!-- Kapak Görseli (URL veya Dosya Yükleme) -->
         <div class="form-group">
-          <label>Kapak Görseli URL</label>
-          <input 
-            v-model="form.thumbnail_url" 
-            type="url" 
-            placeholder="https://ornek.com/gorsel.jpg" 
-            class="form-input" 
-          />
+          <label>Kapak Görseli</label>
+          <div class="image-upload-row">
+            <input 
+              v-model="form.thumbnail_url" 
+              type="url" 
+              placeholder="https://ornek.com/gorsel.jpg veya dosya yükleyin" 
+              class="form-input" 
+            />
+            
+            <!-- Label tabanlı %100 çalışan dosya seçici -->
+            <label class="upload-trigger-btn">
+              <span>{{ isUploading ? 'Yükleniyor...' : '📁 Görsel Seç' }}</span>
+              <input 
+                type="file" 
+                accept="image/*" 
+                @change="handleFileUpload" 
+                style="display: none;" 
+                :disabled="isUploading"
+              />
+            </label>
+          </div>
+          <span v-if="isUploading" class="upload-hint">Görsel Supabase Storage'a yükleniyor, lütfen bekleyin...</span>
         </div>
 
         <div class="form-row">
@@ -131,7 +166,7 @@ const handleSubmit = async () => {
           ></textarea>
         </div>
 
-        <button type="submit" class="submit-btn" :disabled="isSubmitting">
+        <button type="submit" class="submit-btn" :disabled="isSubmitting || isUploading">
           {{ isSubmitting ? 'Gönderiliyor...' : 'Onaya Gönder 🚀' }}
         </button>
       </form>
@@ -156,6 +191,12 @@ const handleSubmit = async () => {
 .form-input { padding: 0.85rem 1rem; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 1rem; background: #ffffff; color: #0f172a; box-sizing: border-box; transition: all 0.2s; width: 100%; }
 .form-input:focus { outline: none; border-color: #42b983; box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.15); }
 textarea.form-input { resize: vertical; }
+
+.image-upload-row { display: flex; gap: 0.5rem; align-items: center; }
+.upload-trigger-btn { background: #f1f5f9; border: 1px solid #cbd5e1; color: #0f172a; padding: 0.85rem 1.2rem; border-radius: 10px; font-weight: 700; font-size: 0.95rem; cursor: pointer; white-space: nowrap; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+.upload-trigger-btn:hover { background: #e2e8f0; border-color: #94a3b8; }
+.upload-hint { font-size: 0.8rem; color: #42b983; font-weight: 600; }
+
 .submit-btn { background-color: #42b983; color: white; border: none; padding: 1rem; border-radius: 12px; font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(66, 185, 131, 0.3); margin-top: 1rem; }
 .submit-btn:hover { background-color: #369c6d; transform: translateY(-2px); }
 .submit-btn:disabled { background-color: #94a3b8; cursor: not-allowed; transform: none; box-shadow: none; }

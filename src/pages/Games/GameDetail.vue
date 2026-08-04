@@ -3,6 +3,11 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marketService } from '../../services/marketService'
+import { createClient } from '@supabase/supabase-js'
+
+const SUPABASE_URL = 'https://egzfowxhslazwyclxopt.supabase.co' 
+const SUPABASE_KEY = 'sb_publishable_8QGwpT9OXn0g2KDwpb_YOA_SW0cYHug'
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const route = useRoute()
 const router = useRouter()
@@ -11,10 +16,24 @@ const game = ref(null)
 const listings = ref([])
 const isLoading = ref(true)
 const errorMessage = ref(null)
+const isAdmin = ref(false)
 
 onMounted(async () => {
   const gameId = route.params.id
   
+  // 1. Oturum ve Admin Yetki Kontrolü
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', session.user.id)
+      .single()
+    
+    isAdmin.value = !!profile?.is_admin
+  }
+
+  // 2. Oyun ve İlan Bilgilerini Çekme
   const [gameRes, listingsRes] = await Promise.all([
     marketService.getGameById(gameId),
     marketService.getListingsByGameId(gameId)
@@ -37,14 +56,24 @@ const goToTheListing = (listingId) => {
   router.push(`/marketplace/${listingId}`)
 }
 
+const goToAdminEdit = () => {
+  router.push(`/admin/games/${game.value.id}/edit`)
+}
+
+// Nokta ile yarım kalmayı önleyen, karakter limitli ve akıllı özet fonksiyonu
 const oyunOzeti = computed(() => {
   if (!game.value || !game.value.description) return ''
   
   let temizMetin = game.value.description.replace(/<[^>]*>?/gm, '')
   temizMetin = temizMetin.replace(/&nbsp;/g, ' ').trim()
   
-  let ilkCumle = temizMetin.split('.')[0]
-  return ilkCumle ? ilkCumle + '.' : ''
+  // Eğer metin kısaysa direkt ver, uzunsa ilk 180 karakterde kelime bütünlüğünü bozmadan kes
+  if (temizMetin.length <= 180) return temizMetin
+  
+  let kesikMetin = temizMetin.substring(0, 180)
+  let sonBosluk = kesikMetin.lastIndexOf(' ')
+  
+  return sonBosluk > 0 ? kesikMetin.substring(0, sonBosluk) + '...' : kesikMetin + '...'
 })
 
 const formatliAciklama = computed(() => {
@@ -73,13 +102,21 @@ const formatliAciklama = computed(() => {
 
 <template>
   <div class="page-container">
-    <button class="back-btn" @click="router.back()">← Kataloğa Geri Dön</button>
+    <div class="top-nav-bar">
+      <!-- router.back() yerine doğrudan rotayı sabitliyoruz -->
+      <button class="back-btn" @click="router.push('/games')">← Kataloğa Geri Dön</button>
+      
+      <!-- Sadece admin kullanıcılara görünen Düzenle Butonu -->
+      <button v-if="isAdmin" class="admin-edit-btn" @click="goToAdminEdit">
+        ✏️ Bu Oyunu Düzenle (CMS)
+      </button>
+    </div>
 
     <div v-if="isLoading" class="state-box">⏳ Oyun yükleniyor...</div>
     <div v-else-if="errorMessage" class="state-box error">❌ {{ errorMessage }}</div>
 
     <template v-else-if="game">
-      <!-- Oyun Detay Kartı (Hero Alanı) -->
+      <!-- Oyun Detay Kartı (Hero Alanı) - Büyütülmüş ve Ferahlatılmış -->
       <div class="game-detail-card">
         <div class="game-image-wrapper">
           <img 
@@ -96,15 +133,21 @@ const formatliAciklama = computed(() => {
           
           <h1>{{ game.title }}</h1>
 
-          <!-- Özellik Grid Kutuları -->
+          <!-- Özellik Grid Kutuları (4'lü Kompakt Tek Satır) -->
           <div class="features-grid">
             <div class="feature-box">
               <span class="f-label">Oyuncu Sayısı</span>
-              <span class="f-value">👥 {{ game.min_players }} - {{ game.max_players }} Oyuncu</span>
+              <span class="f-value">
+                👥 {{ game.min_players === game.max_players ? `${game.min_players} Oyuncu` : `${game.min_players}-${game.max_players} Oyuncu` }}
+              </span>
+            </div>
+            <div class="feature-box">
+              <span class="f-label">Yaş Sınırı</span>
+              <span class="f-value">👶 {{ game.min_age ? `${game.min_age}+ Yaş` : 'Her Yaş' }}</span>
             </div>
             <div class="feature-box">
               <span class="f-label">Ortalama Süre</span>
-              <span class="f-value">⏱️ {{ game.play_time }} Dakika</span>
+              <span class="f-value">⏱️ {{ game.play_time }} dk</span>
             </div>
             <div class="feature-box">
               <span class="f-label">Dil Bağımlılığı</span>
@@ -112,7 +155,7 @@ const formatliAciklama = computed(() => {
             </div>
           </div>
 
-          <!-- Üst Kısım: Sadece Tek Cümlelik Özet -->
+          <!-- Üst Kısım: Akıllı Özet Alanı -->
           <div class="description-section" v-if="game.description">
             <h3>Oyun Hakkında</h3>
             <p>{{ oyunOzeti }}</p>
@@ -170,8 +213,15 @@ const formatliAciklama = computed(() => {
 <style scoped>
 .page-container {
   padding: 1rem 0 4rem 0;
-  max-width: 900px;
+  max-width: 950px; /* Kartın genel alanını biraz genişlettik */
   margin: 0 auto;
+}
+
+.top-nav-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
 }
 
 .back-btn {
@@ -181,17 +231,34 @@ const formatliAciklama = computed(() => {
   cursor: pointer;
   font-size: 1rem;
   font-weight: 700;
-  margin-bottom: 1.5rem;
   padding: 0;
 }
 .back-btn:hover { text-decoration: underline; }
 
+.admin-edit-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-edit-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+/* Oyun kartı genel boyutu ve yüksekliği biraz büyütüldü */
 .game-detail-card {
   background: #ffffff;
   border-radius: 20px;
   border: 1px solid #e2e8f0;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.05);
   display: grid;
   grid-template-columns: 1fr;
   margin-bottom: 3rem;
@@ -199,14 +266,14 @@ const formatliAciklama = computed(() => {
 
 @media (min-width: 768px) {
   .game-detail-card {
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 400px 1fr; /* Sol görsel alanı biraz daha genişletildi */
   }
 }
 
 .game-image-wrapper {
   background: #f1f5f9;
   height: 100%;
-  min-height: 250px;
+  min-height: 380px; /* Görsel alanının dikey boyutu büyütüldü */
 }
 
 .game-image-wrapper img {
@@ -216,10 +283,10 @@ const formatliAciklama = computed(() => {
 }
 
 .game-content {
-  padding: 2rem;
+  padding: 2.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: 1.25rem;
 }
 
 .category-tag {
@@ -234,46 +301,52 @@ const formatliAciklama = computed(() => {
 
 .game-content h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.8rem;
   color: #0f172a;
   font-weight: 800;
+  line-height: 1.2;
 }
 
+/* 4 Sütunlu Kompakt Tek Satır Izgara Tasarımı */
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
 }
 
-@media (max-width: 640px) {
-  .features-grid { grid-template-columns: 1fr; }
+@media (max-width: 768px) {
+  .features-grid { 
+    grid-template-columns: repeat(2, 1fr); 
+  }
 }
 
 .feature-box {
   background: #f8fafc;
-  padding: 0.75rem;
-  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
   border: 1px solid #f1f5f9;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .f-label {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: #64748b;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .f-value {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: #1e293b;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .description-section h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 0.4rem 0;
+  font-size: 1.05rem;
   color: #1e293b;
   font-weight: 700;
 }
@@ -281,13 +354,13 @@ const formatliAciklama = computed(() => {
 .description-section p {
   margin: 0;
   color: #475569;
-  line-height: 1.6;
-  font-size: 0.95rem;
+  line-height: 1.55;
+  font-size: 0.92rem;
 }
 
 .action-section {
   margin-top: auto;
-  padding-top: 1rem;
+  padding-top: 0.5rem;
 }
 
 .create-listing-btn {
@@ -364,6 +437,7 @@ const formatliAciklama = computed(() => {
 }
 
 .listing-details {
+  print-color-adjust: exact;
   font-size: 0.9rem;
   color: #475569;
   display: flex;

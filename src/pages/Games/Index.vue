@@ -24,7 +24,7 @@ onMounted(async () => {
   const { data: { session } } = await supabase.auth.getSession()
   isLoggedIn.value = !!session
 
-  // Oturum durum değişikliklerini anlık dinlemek için (isteğe bağlı)
+  // Oturum durum değişikliklerini anlık dinlemek için
   supabase.auth.onAuthStateChange((event, session) => {
     isLoggedIn.value = !!session
   })
@@ -115,7 +115,9 @@ const goToDetail = (gameId) => {
           <!-- Detay Rozetleri (Kategori, Oyuncu, Süre) -->
           <div class="badges">
             <span v-if="game.categories" class="badge category-badge">🏷️ {{ game.categories.name }}</span>
-            <span class="badge">👥 {{ game.min_players }}-{{ game.max_players }} Oyuncu</span>
+            <span class="badge">
+              👥 {{ game.min_players === game.max_players ? `${game.min_players} Oyuncu` : `${game.min_players} - ${game.max_players} Oyuncu` }}
+            </span>
             <span class="badge">⏱️ {{ game.play_time }} dk</span>
           </div>
 

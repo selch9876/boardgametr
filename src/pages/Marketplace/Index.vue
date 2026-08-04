@@ -12,6 +12,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 const router = useRouter()
 
 const listings = ref([])
+const games = ref([]) // Katalogdaki oyunları kontrol etmek için
 const isLoading = ref(true)
 const errorMessage = ref(null)
 const searchQuery = ref('')
@@ -28,14 +29,20 @@ onMounted(async () => {
     isLoggedIn.value = !!session
   })
 
-  // 2. İlanları çekme işlemi
+  // 2. İlanları ve oyun kataloğunu çekme işlemi
   const response = await marketService.getAllListings()
+  const gamesResponse = await marketService.getAllGames()
   
   if (response.success) {
     listings.value = response.data
   } else {
     errorMessage.value = response.error
   }
+
+  if (gamesResponse.success) {
+    games.value = gamesResponse.data
+  }
+
   isLoading.value = false
 })
 
@@ -46,6 +53,14 @@ const filteredListings = computed(() => {
     const query = searchQuery.value.toLowerCase()
     return gameTitle.toLowerCase().includes(query) || desc.toLowerCase().includes(query)
   })
+})
+
+// Yazılan arama terimiyle tam eşleşen resmi/kayıtlı bir oyun katalogda var mı kontrolü
+const hasExactMatchInCatalog = computed(() => {
+  if (!searchQuery.value.trim()) return true
+  return games.value.some(
+    game => game.title.toLowerCase() === searchQuery.value.trim().toLowerCase()
+  )
 })
 
 const goToDetail = (id) => {
@@ -96,8 +111,19 @@ const goToDetail = (id) => {
         class="listing-card clickable"
         @click="goToDetail(item.id)"
       >
+        <!-- Katalog Sayfasındaki Gibi Placeholder Destekli Görsel Alanı -->
         <div class="listing-thumb">
-          <img :src="item.games?.thumbnail_url || 'https://via.placeholder.com/300x200?text=Masa+Oyunu'" :alt="item.games?.title" />
+          <div class="placeholder-container">
+            <img 
+              :src="item.games?.thumbnail_url" 
+              :alt="item.games?.title" 
+              @error="(e) => e.target.style.display = 'none'"
+            />
+            <div class="placeholder-overlay">
+              <img src="/placeholder.jpg" class="bg-placeholder" alt="" />
+              <span class="game-title-text">{{ item.games?.title || 'Masa Oyunu' }}</span>
+            </div>
+          </div>
         </div>
 
         <div class="listing-info">
@@ -120,9 +146,15 @@ const goToDetail = (id) => {
       </div>
     </div>
 
-    <!-- İlan Bulunamadı Durumu (Yönlendirme kaldırıldı) -->
-    <div v-else class="state-box">
-      📦 Henüz pazar yerinde aktif bir ilan bulunmuyor.
+    <!-- İlan Bulunamadı / Arama Sonucu Yok Durumu -->
+    <div v-else class="state-box not-found-box">
+      <p>📦 Aradığınız kriterlere uygun ilan bulunamadı.</p>
+      
+      <!-- Eğer arama yapılmışsa ve katalogda da eşleşme yoksa "Kataloğa Ekle" ipucu göster -->
+      <div v-if="!hasExactMatchInCatalog && searchQuery.trim()" class="not-found-hint">
+        Aradığın oyun katalogda da yok mu? 
+        <router-link to="/games/create" class="inline-link">Hemen Kataloğa Ekle →</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -132,6 +164,61 @@ const goToDetail = (id) => {
   padding: 1rem 0 3rem 0;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+/* Placeholder Stilleri (Katalog Sayfasıyla Birebir Aynı) */
+.placeholder-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #f1f5f9;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-container img:not(.bg-placeholder) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+}
+
+.placeholder-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.bg-placeholder {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+  filter: grayscale(20%);
+}
+
+.game-title-text {
+  position: relative;
+  z-index: 3;
+  padding: 0 1rem;
+  text-align: center;
+  font-family: sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #0f172a;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 255, 255, 0.8);
 }
 
 .page-top-section {
@@ -248,12 +335,6 @@ const goToDetail = (id) => {
   overflow: hidden;
 }
 
-.listing-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .listing-info {
   padding: 1.25rem;
   display: flex;
@@ -322,6 +403,28 @@ const goToDetail = (id) => {
   background: #ffffff;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
+}
+
+.not-found-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.not-found-hint {
+  font-size: 0.95rem;
+  color: #64748b;
+}
+
+.inline-link {
+  color: #42b983;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
 }
 
 .error {

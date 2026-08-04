@@ -25,7 +25,7 @@ export const marketService = {
       .from('games')
       .select(`
         *,
-        categories ( id, name, slug )
+        categories:category_id ( id, name, slug )
       `)
       .eq('is_approved', true)
       .order('title', { ascending: true })
@@ -45,7 +45,7 @@ export const marketService = {
       .from('games')
       .select(`
         *,
-        categories ( id, name, slug )
+        categories:category_id ( id, name, slug )
       `)
       .eq('id', gameId)
       .single()
@@ -107,7 +107,10 @@ export const marketService = {
       .from('listings')
       .select(`
         *,
-        games ( id, title, thumbnail_url, min_players, max_players, play_time, language_dependence, description, categories ( name ) ),
+        games ( 
+          id, title, thumbnail_url, min_players, max_players, play_time, language_dependence, description, 
+          categories:category_id ( id, name, slug ) 
+        ),
         profiles ( id, username )
       `)
       .eq('id', listingId)
@@ -164,5 +167,70 @@ export const marketService = {
     }
 
     return { success: true, data: data[0], error: null }
+  },
+
+  /**
+   * Pazar yerine yeni bir ilan ekler
+   */
+  async createListing(listingData) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return { success: false, data: null, error: 'İlan vermek için giriş yapmalısınız.' }
+    }
+
+    const payload = {
+      game_id: listingData.game_id,
+      price: parseFloat(listingData.price),
+      condition: listingData.condition || 'like_new',
+      has_sleeves: listingData.has_sleeves || false,
+      description: listingData.description || null,
+      status: listingData.status || 'active',
+      seller_id: user.id
+    }
+
+    const { data, error } = await supabase
+      .from('listings')
+      .insert([payload])
+      .select()
+
+    if (error) {
+      console.error('İlan oluşturulurken hata:', error.message)
+      return { success: false, data: null, error: error.message }
+    }
+
+    return { success: true, data: data[0], error: null }
+  },
+
+  /**
+   * Supabase Storage'a oyun görseli yükler ve public URL döndürür
+   */
+  /**
+   * Supabase Storage'a oyun görseli yükler ve public URL döndürür
+   */
+  async uploadGameThumbnail(file) {
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+      
+      // game-images klasörünün içine kaydetmek için yol belirtiyoruz
+      const filePath = `game-images/${fileName}`
+
+      const { data, error } = await supabase.storage
+        .from('game-images') // Bucket adı
+        .upload(filePath, file)
+
+      if (error) throw error
+
+      // Yüklenen dosyanın public URL'sini alalım
+      const { data: { publicUrl } } = supabase.storage
+        .from('game-images')
+        .getPublicUrl(filePath)
+
+      return { success: true, url: publicUrl, error: null }
+    } catch (error) {
+      console.error('Görsel yüklenirken hata:', error.message)
+      return { success: false, url: null, error: error.message }
+    }
   }
 }
