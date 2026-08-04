@@ -3,6 +3,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { marketService } from '../../services/marketService'
+import { createClient } from '@supabase/supabase-js'
+
+const SUPABASE_URL = 'https://egzfowxhslazwyclxopt.supabase.co' 
+const SUPABASE_KEY = 'sb_publishable_8QGwpT9OXn0g2KDwpb_YOA_SW0cYHug'
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const router = useRouter()
 
@@ -10,9 +15,21 @@ const games = ref([])
 const isLoading = ref(true)
 const errorMessage = ref(null)
 const searchQuery = ref('')
+const isLoggedIn = ref(false)
 
 onMounted(async () => {
   isLoading.value = true
+
+  // 1. Oturum açmış kullanıcı kontrolü
+  const { data: { session } } = await supabase.auth.getSession()
+  isLoggedIn.value = !!session
+
+  // Oturum durum değişikliklerini anlık dinlemek için (isteğe bağlı)
+  supabase.auth.onAuthStateChange((event, session) => {
+    isLoggedIn.value = !!session
+  })
+
+  // 2. Oyunları çekme işlemi
   const response = await marketService.getAllGames()
   
   if (response.success) {
@@ -56,7 +73,12 @@ const goToDetail = (gameId) => {
         />
       </div>
 
-      <router-link to="/games/create" class="create-game-btn">
+      <!-- Sadece giriş yapmış kullanıcılara görünür -->
+      <router-link 
+        v-if="isLoggedIn" 
+        to="/games/create" 
+        class="create-game-btn"
+      >
         + Yeni Oyun Ekle
       </router-link>
     </div>
@@ -74,7 +96,17 @@ const goToDetail = (gameId) => {
         @click="goToDetail(game.id)"
       >
         <div class="game-thumb">
-          <img :src="game.thumbnail_url || 'https://via.placeholder.com/300x200?text=Masa+Oyunu'" :alt="game.title" />
+          <div class="placeholder-container">
+            <img 
+              :src="game.thumbnail_url" 
+              :alt="game.title" 
+              @error="(e) => e.target.style.display = 'none'"
+            />
+            <div class="placeholder-overlay">
+              <img src="/placeholder.jpg" class="bg-placeholder" alt="" />
+              <span class="game-title-text">{{ game.title }}</span>
+            </div>
+          </div>
         </div>
         
         <div class="game-info">
@@ -101,7 +133,7 @@ const goToDetail = (gameId) => {
     </div>
 
     <div v-else class="state-box">
-      📦 Aradığınız kriterlere uygun oyun bulunamadı. Hemen yukarıdan yeni oyun ekleyebilirsiniz!
+      📦 Aradığınız kriterlere uygun oyun bulunamadı.
     </div>
   </div>
 </template>
@@ -111,6 +143,60 @@ const goToDetail = (gameId) => {
   padding: 1rem 0 3rem 0;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.placeholder-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #f1f5f9;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-container img:not(.bg-placeholder) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+}
+
+.placeholder-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.bg-placeholder {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.35;
+  filter: grayscale(20%);
+}
+
+.game-title-text {
+  position: relative;
+  z-index: 3;
+  padding: 0 1rem;
+  text-align: center;
+  font-family: sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #0f172a;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 255, 255, 0.8);
 }
 
 .page-top-section {
@@ -130,7 +216,6 @@ const goToDetail = (gameId) => {
   margin: 0;
 }
 
-/* Arama Çubuğu ve Buton Alanı */
 .top-action-bar {
   display: flex;
   align-items: center;
@@ -185,7 +270,6 @@ const goToDetail = (gameId) => {
   box-shadow: 0 6px 20px rgba(66, 185, 131, 0.5);
 }
 
-/* Oyun Kartları Grid */
 .games-grid {
   display: grid;
   gap: 1.5rem;

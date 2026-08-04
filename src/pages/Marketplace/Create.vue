@@ -1,11 +1,11 @@
 <!-- src/pages/Marketplace/Create.vue -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { marketService } from '../../services/marketService'
-import { supabase } from '../../services/supabase'
 
 const router = useRouter()
+const route = useRoute()
 
 const games = ref([])
 const isLoadingGames = ref(true)
@@ -15,7 +15,6 @@ const errorMessage = ref(null)
 // Arama ve Seçim İçin State'ler
 const gameSearchQuery = ref('')
 const isDropdownOpen = ref(false)
-const selectedGameTitle = ref('')
 
 // Form Alanları
 const form = ref({
@@ -30,6 +29,23 @@ onMounted(async () => {
   const response = await marketService.getAllGames()
   if (response.success) {
     games.value = response.data
+
+    // URL'den game_id ve game_title parametrelerini yakala
+    const urlGameId = route.query.game_id
+    const urlGameTitle = route.query.game_title
+
+    if (urlGameId) {
+      // ID ile kataloğumuzda eşleşen oyunu bul
+      const matchedGame = games.value.find(g => String(g.id) === String(urlGameId))
+      
+      if (matchedGame) {
+        selectGame(matchedGame)
+      } else if (urlGameTitle) {
+        // Eğer ID listede direkt bulunamazsa ama title geldiyse arama alanına yaz
+        gameSearchQuery.value = urlGameTitle
+        form.value.game_id = urlGameId
+      }
+    }
   } else {
     errorMessage.value = 'Oyun kataloğu yüklenemedi.'
   }
@@ -38,23 +54,22 @@ onMounted(async () => {
 
 // Kullanıcının yazdığına göre oyunları filtreleme
 const filteredGames = computed(() => {
-  if (!gameSearchQuery.value) return games.value.slice(0, 10) // Performans için ilk 10 oyun
+  if (!gameSearchQuery.value) return games.value.slice(0, 10)
   return games.value.filter(game => 
     game.title.toLowerCase().includes(gameSearchQuery.value.toLowerCase())
   )
 })
 
-// Oyun seçildiğinde
+// Oyun seçildiğinde tetiklenen fonksiyon
 const selectGame = (game) => {
   form.value.game_id = game.id
-  selectedGameTitle.value = game.title
   gameSearchQuery.value = game.title
   isDropdownOpen.value = false
 }
 
 const handleSubmit = async () => {
   if (!form.value.game_id || !form.value.price) {
-    alert('Lütfen listeden bir oyun seçin ve fiyat belirtin.')
+    alert('Lütfen listeden geçerli bir oyun seçin ve fiyat belirtin.')
     return
   }
 

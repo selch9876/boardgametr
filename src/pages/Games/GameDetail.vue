@@ -33,57 +33,38 @@ onMounted(async () => {
   isLoading.value = false
 })
 
-const goToDetail = (gameId) => {
-  router.push(`/games/${gameId}`)
-}
-
-const goToCategory = (catSlug) => {
-  // Eğer kategori sayfasına yönlendirmek isterseniz:
-  // router.push(`/games?category=${catSlug}`)
-}
-
 const goToTheListing = (listingId) => {
   router.push(`/marketplace/${listingId}`)
 }
 
-// 1. ÖZET: Eski HTML etiketlerini ve özel karakterleri temizleyip sadece ilk cümleyi alır
 const oyunOzeti = computed(() => {
   if (!game.value || !game.value.description) return ''
   
-  // Eski yapıdaki HTML etiketlerini (<...>) ve &nbsp; kodlarını temizle
   let temizMetin = game.value.description.replace(/<[^>]*>?/gm, '')
   temizMetin = temizMetin.replace(/&nbsp;/g, ' ').trim()
   
-  // Sadece ilk cümleyi al (ilk noktaya kadar)
   let ilkCumle = temizMetin.split('.')[0]
   return ilkCumle ? ilkCumle + '.' : ''
 })
 
-// 2. TAM METİN: Eski paragraf mantığını uygular ve HTML etiketlerini korur
 const formatliAciklama = computed(() => {
   if (!game.value || !game.value.description) return ''
   
   let metin = game.value.description
-  
-  // Gereksiz yere konmuş tekli &nbsp; boşluklarını temizle
   metin = metin.replace(/&nbsp;/g, '')
 
-  // Eski yapıdaki \r\n\r\n (çift satır) boşluklarını yakala
   let paragraflar = metin.split(/\r?\n\s*\r?\n/)
   
   metin = paragraflar
     .filter(p => p.trim() !== '')
     .map(p => {
-       // Eski metinde <h3>, <ul>, <li> gibi bir HTML bloğu varsa <p> içine sokma bozmasın
        if (p.trim().match(/^<\/?(h[1-6]|ul|li|div|p|img)/i)) {
          return p.trim()
        }
-       // Düz metinse <p> paragraf etiketi içine al
        return `<p>${p.trim()}</p>`
     })
     .join('')
     
-  // Kalan tekli satır atlamalarını (<br>) yap
   metin = metin.replace(/\r?\n/g, '<br>')
   
   return metin
@@ -101,7 +82,11 @@ const formatliAciklama = computed(() => {
       <!-- Oyun Detay Kartı (Hero Alanı) -->
       <div class="game-detail-card">
         <div class="game-image-wrapper">
-          <img :src="game.thumbnail_url || 'https://via.placeholder.com/400x300?text=Masa+Oyunu'" :alt="game.title" />
+          <img 
+            :src="game.thumbnail_url || '/placeholder.jpg'" 
+            :alt="game.title" 
+            @error="(e) => e.target.src = '/placeholder.jpg'"
+          />
         </div>
 
         <div class="game-content">
@@ -135,7 +120,10 @@ const formatliAciklama = computed(() => {
 
           <!-- İlan Ver Butonu -->
           <div class="action-section">
-            <router-link :to="`/marketplace/create?game_id=${game.id}`" class="create-listing-btn">
+            <router-link 
+              :to="{ path: '/marketplace/create', query: { game_id: game.id, game_title: game.title } }" 
+              class="create-listing-btn"
+            >
               + Bu Oyun İçin İlan Ver
             </router-link>
           </div>
@@ -145,8 +133,6 @@ const formatliAciklama = computed(() => {
       <!-- Alt Kısım: Tam Genişlikte Orijinal Makale ve İnceleme Alanı -->
       <div class="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8 my-6" v-if="game.description">
         <h3 class="text-xl font-bold text-gray-900 mb-4">Oyun İncelemesi ve Detaylı Açıklama</h3>
-        
-        <!-- v-html ile işlenmiş metni basıyoruz (whitespace-pre-line kaldırıldı) -->
         <div class="text-gray-700 leading-relaxed full-text-content" v-html="formatliAciklama"></div>
       </div>
 
@@ -413,10 +399,6 @@ const formatliAciklama = computed(() => {
   border: 1px solid #e2e8f0;
 }
 .error { color: #e74c3c; background: #fdf2f2; border-color: #f8d7da; }
-
-/* ------------------------------------------------------------- */
-/* TAM METİN (v-html) BİÇİMLENDİRMESİ (WordPress Orijinal Yapısı)*/
-/* ------------------------------------------------------------- */
 
 .full-text-content :deep(p) {
   margin-bottom: 1.25rem;

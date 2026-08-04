@@ -3,6 +3,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { marketService } from '../../services/marketService'
+import { createClient } from '@supabase/supabase-js'
+
+const SUPABASE_URL = 'https://egzfowxhslazwyclxopt.supabase.co' 
+const SUPABASE_KEY = 'sb_publishable_8QGwpT9OXn0g2KDwpb_YOA_SW0cYHug'
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 const router = useRouter()
 
@@ -10,9 +15,20 @@ const listings = ref([])
 const isLoading = ref(true)
 const errorMessage = ref(null)
 const searchQuery = ref('')
+const isLoggedIn = ref(false)
 
 onMounted(async () => {
   isLoading.value = true
+
+  // 1. Oturum açmış kullanıcı kontrolü
+  const { data: { session } } = await supabase.auth.getSession()
+  isLoggedIn.value = !!session
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    isLoggedIn.value = !!session
+  })
+
+  // 2. İlanları çekme işlemi
   const response = await marketService.getAllListings()
   
   if (response.success) {
@@ -58,7 +74,12 @@ const goToDetail = (id) => {
         />
       </div>
 
-      <router-link to="/marketplace/create" class="create-btn">
+      <!-- Sadece giriş yapmış kullanıcılara görünür -->
+      <router-link 
+        v-if="isLoggedIn" 
+        to="/marketplace/create" 
+        class="create-btn"
+      >
         + İlan Ver
       </router-link>
     </div>
@@ -99,8 +120,9 @@ const goToDetail = (id) => {
       </div>
     </div>
 
+    <!-- İlan Bulunamadı Durumu (Yönlendirme kaldırıldı) -->
     <div v-else class="state-box">
-      📦 Henüz pazar yerinde aktif bir ilan bulunmuyor. İlk ilanı sen oluşturabilirsin!
+      📦 Henüz pazar yerinde aktif bir ilan bulunmuyor.
     </div>
   </div>
 </template>
