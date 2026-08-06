@@ -27,11 +27,23 @@
         <router-link to="/marketplace">Pazar Yeri</router-link>
         <router-link to="/games">Oyun Kataloğu</router-link>
 
-        <!-- Eğer kullanıcı giriş yaptıysa Çıkış Yap ve rozet görünsün -->
+        <!-- Eğer kullanıcı giriş yaptıysa Profil, Admin (yetkiye göre), Çıkış Yap ve rozet görünsün -->
         <template v-if="user">
+          <router-link to="/profile" class="profile-nav-link">Profilim 👤</router-link>
+          
+          <!-- Sadece Yetkili / Admin Kullanıcılara Özel Admin Paneli Linki -->
+          <router-link 
+            v-if="isAdmin || userRole === 'Site Sahibi' || userRole === 'Yönetici'" 
+            to="/admin" 
+            class="admin-nav-link"
+          >
+            Admin 🛡️
+          </router-link>
+
           <button @click="handleSignOut" class="auth-link-btn logout-btn">Çıkış Yap</button>
           <span :class="['user-badge', getBadgeClass(userRole)]">{{ userRole }}</span>
         </template>
+
         <!-- Giriş yapmadıysa, tıklandığı sayfayı redirect olarak taşıyan Giriş Yap butonu -->
         <template v-else>
           <router-link 
@@ -61,17 +73,19 @@ const route = useRoute()
 
 const user = ref(null)
 const userRole = ref('Yeni Üye') // Varsayılan
+const isAdmin = ref(false)
 
-// Kullanıcı rolünü Supabase profiles tablosundan çekme fonksiyonu
-const fetchUserRole = async (userId) => {
+// Kullanıcı rolünü ve admin durumunu Supabase profiles tablosundan çekme fonksiyonu
+const fetchUserProfile = async (userId) => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, is_admin')
     .eq('id', userId)
     .single()
     
-  if (data && data.role) {
-    userRole.value = data.role
+  if (data) {
+    if (data.role) userRole.value = data.role
+    isAdmin.value = !!data.is_admin
   }
 }
 
@@ -81,16 +95,17 @@ onMounted(async () => {
   user.value = session?.user || null
   
   if (user.value) {
-    await fetchUserRole(user.value.id)
+    await fetchUserProfile(user.value.id)
   }
 
   // Oturum değişikliklerini dinle
   supabase.auth.onAuthStateChange(async (event, session) => {
     user.value = session?.user || null
     if (user.value) {
-      await fetchUserRole(user.value.id)
+      await fetchUserProfile(user.value.id)
     } else {
       userRole.value = 'Yeni Üye'
+      isAdmin.value = false
     }
   })
 })
@@ -111,6 +126,7 @@ const handleSignOut = async () => {
   await supabase.auth.signOut()
   user.value = null
   userRole.value = 'Yeni Üye'
+  isAdmin.value = false
   router.push('/')
 }
 </script>
@@ -156,6 +172,26 @@ body {
 
 .logout-btn:hover {
   background-color: #2d3748 !important;
+}
+
+.profile-nav-link,
+.admin-nav-link {
+  font-weight: 600;
+  color: #334155 !important;
+}
+
+.admin-nav-link {
+  color: #b91c1c !important;
+}
+
+.profile-nav-link:hover,
+.profile-nav-link.router-link-active {
+  color: #42b983 !important;
+}
+
+.admin-nav-link:hover,
+.admin-nav-link.router-link-active {
+  color: #991b1b !important;
 }
 
 .main-header {

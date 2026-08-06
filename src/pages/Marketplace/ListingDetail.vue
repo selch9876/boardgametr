@@ -17,6 +17,10 @@ const isLoading = ref(true)
 const errorMessage = ref(null)
 const isOwner = ref(false)
 
+// Koleksiyon yönetimi için state'ler
+const currentUserId = ref(null)
+const userGameStatus = ref(null) // 'owned', 'wishlist' veya null
+
 onMounted(async () => {
   const listingId = route.params.id 
   
@@ -25,10 +29,28 @@ onMounted(async () => {
   if (response.success) {
     listing.value = response.data
 
-    // Oturum açan kullanıcı ilanın sahibi mi kontrol edelim
+    // Oturum açan kullanıcıyı ve yetkilerini kontrol edelim
     const { data: { session } } = await supabase.auth.getSession()
-    if (session && response.data.seller_id) {
-      isOwner.value = session.user.id === response.data.seller_id
+    if (session) {
+      currentUserId.value = session.user.id
+      
+      if (response.data.seller_id) {
+        isOwner.value = session.user.id === response.data.seller_id
+      }
+
+      // Kullanıcının bu oyunu koleksiyonuna ekleyip eklemediğini kontrol et
+      if (response.data.game_id) {
+        const { data: userGameData } = await supabase
+          .from('user_games')
+          .select('status')
+          .eq('user_id', session.user.id)
+          .eq('game_id', response.data.game_id)
+          .single()
+
+        if (userGameData) {
+          userGameStatus.value = userGameData.status
+        }
+      }
     }
   } else {
     errorMessage.value = "İlan bulunamadı veya yayından kaldırılmış."
@@ -55,6 +77,28 @@ const formattedPrice = computed(() => {
 
 const goToEdit = () => {
   router.push(`/marketplace/${route.params.id}/edit`)
+}
+
+// Koleksiyona ekleme / çıkarma / güncelleme fonksiyonu (Toggle)
+const handleToggleGame = async (status) => {
+  if (!currentUserId.value) {
+    alert('Koleksiyonunuza oyun eklemek için giriş yapmalısınız.')
+    router.push('/login')
+    return
+  }
+
+  const gameId = listing.value.game_id
+  const res = await marketService.saveUserGame(currentUserId.value, gameId, status)
+
+  if (res.success) {
+    if (res.action === 'removed') {
+      userGameStatus.value = null
+    } else {
+      userGameStatus.value = status
+    }
+  } else {
+    alert('İşlem başarısız oldu: ' + res.error)
+  }
 }
 </script>
 
@@ -91,7 +135,51 @@ const goToEdit = () => {
       
       <!-- Sağ Taraf: Detaylar -->
       <div class="info-section">
-        <h1 class="title">{{ listing.games?.title }}</h1>
+        <div class="title-action-row">
+          <h1 class="title">{{ listing.games?.title }}</h1>
+          
+          <!-- Akıllı Koleksiyon ve İstek Listesi Butonları -->
+          <div v-if="currentUserId" class="collection-buttons">
+            <!-- Eğer kullanıcı Sahipse: Sadece "Sahibim" butonu görünür, tıklayınca kaldırır -->
+            <button 
+              v-if="userGameStatus === 'owned'"
+              @click="handleToggleGame('owned')" 
+              class="col-btn active owned"
+              title="Koleksiyonunuzdan kaldırmak için tıklayın"
+            >
+              ✅ Sahibim
+            </button>
+
+            <!-- Eğer kullanıcı İstiyorsa: Sadece "İstek Listemde" butonu görünür, tıklayınca kaldırır -->
+            <button 
+              v-else-if="userGameStatus === 'wishlist'"
+              @click="handleToggleGame('wishlist')" 
+              class="col-btn active wishlist"
+              title="İstek listenizden kaldırmak için tıklayın"
+            >
+              ❤️ İstek Listemde
+            </button>
+
+            <!-- Hiçbiri değilse: İki ekleme butonu da normal şekilde görünür -->
+            <template v-else>
+              <button 
+                @click="handleToggleGame('owned')" 
+                class="col-btn"
+                title="Koleksiyonuma ekle"
+              >
+                ➕ Koleksiyona Ekle
+              </button>
+              <button 
+                @click="handleToggleGame('wishlist')" 
+                class="col-btn wishlist-add"
+                title="İstek listeme ekle"
+              >
+                📌 İstiyorum
+              </button>
+            </template>
+          </div>
+        </div>
+
         <div class="price-tag">{{ formattedPrice }}</div>
         
         <div class="specs">
@@ -236,7 +324,60 @@ const goToEdit = () => {
 }
 
 .info-section { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; }
-.title { font-size: 2.2rem; margin: 0; color: #0f172a; font-weight: 800; }
+
+.title-action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.title { font-size: 2.2rem; margin: 0; color: #0f172a; font-weight: 800; flex: 1; min-width: 200px; }
+
+/* Koleksiyon Butonları */
+.collection-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.col-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.col-btn:hover {
+  background: #e2e8f0;
+}
+
+.col-btn.owned {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #34d399;
+}
+
+.col-btn.owned:hover {
+  background: #a7f3d0;
+}
+
+.col-btn.wishlist {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #f87171;
+}
+
+.col-btn.wishlist:hover {
+  background: #fecaca;
+}
+
 .price-tag { font-size: 2rem; font-weight: 800; color: #42b983; }
 
 .specs p { margin: 0.5rem 0; font-size: 1.05rem; color: #334155; }

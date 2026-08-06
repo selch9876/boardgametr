@@ -40,6 +40,16 @@ onMounted(async () => {
   isLoading.value = false
 })
 
+// Ortalama puan hesaplama yardımcı fonksiyonu
+const calculateRating = (reviews) => {
+  if (!reviews || reviews.length === 0) return { average: '0.0', count: 0 }
+  const sum = reviews.reduce((acc, curr) => acc + curr.rating, 0)
+  return {
+    average: (sum / reviews.length).toFixed(1),
+    count: reviews.length
+  }
+}
+
 const filteredGames = computed(() => {
   return games.value.filter(game => {
     const title = game.title || ''
@@ -110,7 +120,12 @@ const goToDetail = (gameId) => {
         </div>
         
         <div class="game-info">
-          <h3>{{ game.title }}</h3>
+          <div class="title-rating-header">
+            <h3>{{ game.title }}</h3>
+            <div class="card-rating-badge" v-if="calculateRating(game.game_reviews).count > 0">
+              ⭐ {{ calculateRating(game.game_reviews).average }}
+            </div>
+          </div>
           
           <!-- Detay Rozetleri (Kategori, Oyuncu, Süre) -->
           <div class="badges">
@@ -330,11 +345,29 @@ const goToDetail = (gameId) => {
   flex: 1;
 }
 
+.title-rating-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
 .game-info h3 {
   margin: 0;
   font-size: 1.2rem;
   color: #0f172a;
   font-weight: 700;
+  flex: 1;
+}
+
+.card-rating-badge {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .badges {

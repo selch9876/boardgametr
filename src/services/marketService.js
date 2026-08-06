@@ -18,14 +18,15 @@ export const marketService = {
   },
 
   /**
-   * Sadece admin onayından geçmiş oyunları ve kategorilerini getirir
+   * Sadece admin onayından geçmiş oyunları, kategorilerini ve onaylı inceleme puanlarını getirir
    */
   async getAllGames() {
     const { data, error } = await supabase
       .from('games')
       .select(`
         *,
-        categories:category_id ( id, name, slug )
+        categories:category_id ( id, name, slug ),
+        game_reviews ( rating, is_approved )
       `)
       .eq('is_approved', true)
       .order('title', { ascending: true })
@@ -34,18 +35,26 @@ export const marketService = {
       console.error('Oyunlar çekilirken hata:', error.message)
       return { success: false, data: null, error: error.message }
     }
-    return { success: true, data: data, error: null }
+
+    // Yalnızca onaylanmış incelemelerin puanlarını filtrele
+    const processedData = data.map(game => ({
+      ...game,
+      game_reviews: game.game_reviews?.filter(r => r.is_approved) || []
+    }))
+
+    return { success: true, data: processedData, error: null }
   },
 
   /**
-   * ID'ye göre oyun detayını ve kategorisini getirir
+   * ID'ye göre oyun detayını, kategorisini ve onaylı inceleme puanlarını getirir
    */
   async getGameById(gameId) {
     const { data, error } = await supabase
       .from('games')
       .select(`
         *,
-        categories:category_id ( id, name, slug )
+        categories:category_id ( id, name, slug ),
+        game_reviews ( rating, is_approved )
       `)
       .eq('id', gameId)
       .single()
@@ -54,7 +63,14 @@ export const marketService = {
       console.error('Oyun detayı çekilirken hata:', error.message)
       return { success: false, data: null, error: error.message }
     }
-    return { success: true, data: data, error: null }
+
+    // Yalnızca onaylanmış incelemelerin puanlarını filtrele
+    const processedData = {
+      ...data,
+      game_reviews: data.game_reviews?.filter(r => r.is_approved) || []
+    }
+
+    return { success: true, data: processedData, error: null }
   },
 
   /**
@@ -65,7 +81,7 @@ export const marketService = {
       .from('listings')
       .select(`
         id, price, condition, has_sleeves, description, created_at,
-        profiles ( id, username )
+        profiles ( id, username, reputation_score )
       `)
       .eq('game_id', gameId)
       .eq('status', 'active')
@@ -79,15 +95,18 @@ export const marketService = {
   },
 
   /**
-   * Pazar yerindeki tüm aktif ilanları getirir
+   * Pazar yerindeki tüm aktif ilanları (ve bağlı olduğu oyunların onaylı puanlarını) getirir
    */
   async getAllListings() {
     const { data, error } = await supabase
       .from('listings')
       .select(`
         *,
-        games ( id, title, thumbnail_url ),
-        profiles ( id, username )
+        games ( 
+          id, title, thumbnail_url,
+          game_reviews ( rating, is_approved )
+        ),
+        profiles ( id, username, reputation_score )
       `)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
@@ -96,11 +115,20 @@ export const marketService = {
       console.error('İlanlar çekilirken hata:', error.message)
       return { success: false, data: [], error: error.message }
     }
-    return { success: true, data: data, error: null }
+
+    const processedData = data.map(item => ({
+      ...item,
+      games: item.games ? {
+        ...item.games,
+        game_reviews: item.games.game_reviews?.filter(r => r.is_approved) || []
+      } : null
+    }))
+
+    return { success: true, data: processedData, error: null }
   },
 
   /**
-   * ID'ye göre tekil ilan detayını getirir
+   * ID'ye göre tekil ilan detayını ve oyunun puanlarını getirir
    */
   async getListingById(listingId) {
     const { data, error } = await supabase
@@ -109,9 +137,10 @@ export const marketService = {
         *,
         games ( 
           id, title, thumbnail_url, min_players, max_players, play_time, language_dependence, description, 
-          categories:category_id ( id, name, slug ) 
+          categories:category_id ( id, name, slug ),
+          game_reviews ( rating, is_approved )
         ),
-        profiles ( id, username )
+        profiles ( id, username, reputation_score )
       `)
       .eq('id', listingId)
       .single()
@@ -120,7 +149,16 @@ export const marketService = {
       console.error('İlan detayı çekilirken hata:', error.message)
       return { success: false, data: null, error: error.message }
     }
-    return { success: true, data: data, error: null }
+
+    const processedData = {
+      ...data,
+      games: data.games ? {
+        ...data.games,
+        game_reviews: data.games.game_reviews?.filter(r => r.is_approved) || []
+      } : null
+    }
+
+    return { success: true, data: processedData, error: null }
   },
 
   /**
@@ -205,24 +243,19 @@ export const marketService = {
   /**
    * Supabase Storage'a oyun görseli yükler ve public URL döndürür
    */
-  /**
-   * Supabase Storage'a oyun görseli yükler ve public URL döndürür
-   */
   async uploadGameThumbnail(file) {
     try {
       const fileExt = file.name.split('.').pop()
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`
       
-      // game-images klasörünün içine kaydetmek için yol belirtiyoruz
       const filePath = `game-images/${fileName}`
 
       const { data, error } = await supabase.storage
-        .from('game-images') // Bucket adı
+        .from('game-images')
         .upload(filePath, file)
 
       if (error) throw error
 
-      // Yüklenen dosyanın public URL'sini alalım
       const { data: { publicUrl } } = supabase.storage
         .from('game-images')
         .getPublicUrl(filePath)
@@ -231,6 +264,240 @@ export const marketService = {
     } catch (error) {
       console.error('Görsel yüklenirken hata:', error.message)
       return { success: false, url: null, error: error.message }
+    }
+  },
+
+  // --- KULLANICI KOLEKSİYONU VE İSTEK LİSTESİ SERVİSLERİ ---
+
+  /**
+   * Kullanıcının koleksiyonuna veya istek listesine oyun ekler/günceller (Toggle mantığı)
+   */
+  async saveUserGame(userId, gameId, status) {
+    try {
+      const { data: existing } = await supabase
+        .from('user_games')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('game_id', gameId)
+        .single()
+
+      if (existing) {
+        if (existing.status === status) {
+          const { error } = await supabase
+            .from('user_games')
+            .delete()
+            .eq('id', existing.id)
+          if (error) throw error
+          return { success: true, action: 'removed' }
+        } else {
+          const { error } = await supabase
+            .from('user_games')
+            .update({ status })
+            .eq('id', existing.id)
+          if (error) throw error
+          return { success: true, action: 'updated' }
+        }
+      } else {
+        const { error } = await supabase
+          .from('user_games')
+          .insert([{ user_id: userId, game_id: gameId, status }])
+        if (error) throw error
+        return { success: true, action: 'added' }
+      }
+    } catch (error) {
+      console.error('Koleksiyon kayıt hatası:', error.message)
+      return { success: false, error: error.message }
+    }
+  },
+
+  /**
+   * Belirli bir kullanıcının koleksiyon ve istek listesini getirir
+   */
+  async getUserGames(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('user_games')
+        .select(`
+          id,
+          status,
+          created_at,
+          games (
+            id,
+            title,
+            thumbnail_url,
+            min_players,
+            max_players,
+            play_time,
+            language_dependence,
+            game_reviews ( rating, is_approved )
+          )
+        `)
+        .eq('user_id', userId)
+
+      if (error) throw error
+
+      const processedData = data.map(item => ({
+        ...item,
+        games: item.games ? {
+          ...item.games,
+          game_reviews: item.games.game_reviews?.filter(r => r.is_approved) || []
+        } : null
+      }))
+
+      return { success: true, data: processedData }
+    } catch (error) {
+      console.error('Kullanıcı koleksiyonu çekilemedi:', error.message)
+      return { success: false, error: error.message, data: [] }
+    }
+  },
+
+  /**
+   * Belirli bir oyunun hangi kullanıcılarda (sahip/isteyen) olduğunu getirir
+   */
+  async getGameOwnersAndWishlisters(gameId) {
+    try {
+      const { data, error } = await supabase
+        .from('user_games')
+        .select(`
+          status,
+          profiles (
+            id,
+            username
+          )
+        `)
+        .eq('game_id', gameId)
+
+      if (error) throw error
+      return { success: true, data }
+    } catch (error) {
+      console.error('Oyun sahipleri çekilemedi:', error.message)
+      return { success: false, error: error.message, data: [] }
+    }
+  },
+
+  // --- OYUN PUANLAMA VE İNCELEME SERVİSLERİ ---
+
+  /**
+   * Belirli bir oyuna ait SADECE ONAYLANMIŞ incelemeleri getirir (Kullanıcı tarafı için)
+   */
+  async getGameReviews(gameId) {
+    try {
+      const { data, error } = await supabase
+        .from('game_reviews')
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          user_id,
+          is_approved,
+          profiles (
+            id,
+            username
+          )
+        `)
+        .eq('game_id', gameId)
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      return { success: true, data }
+    } catch (error) {
+      console.error('İncelemeler çekilemedi:', error.message)
+      return { success: false, error: error.message, data: [] }
+    }
+  },
+
+  /**
+   * ADMİN: Platformdaki tüm incelemeleri (onaylı/onaysız) getirir
+   */
+  async getAllReviewsForAdmin() {
+    try {
+      const { data, error } = await supabase
+        .from('game_reviews')
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          is_approved,
+          games ( id, title ),
+          profiles ( id, username )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      return { success: true, data }
+    } catch (error) {
+      console.error('Admin incelemeleri çekilemedi:', error.message)
+      return { success: false, error: error.message, data: [] }
+    }
+  },
+
+  /**
+   * ADMİN: İnceleme onay durumunu değiştirir
+   */
+  async updateReviewApproval(reviewId, isApproved) {
+    try {
+      const { error } = await supabase
+        .from('game_reviews')
+        .update({ is_approved: isApproved })
+        .eq('id', reviewId)
+
+      if (error) throw error
+      return { success: true }
+    } catch (error) {
+      console.error('İnceleme onay durumu güncellenemedi:', error.message)
+      return { success: false, error: error.message }
+    }
+  },
+
+  /**
+   * Kullanıcının bir oyun için yaptığı incelemeyi kaydeder veya günceller
+   */
+  async upsertGameReview(userId, gameId, rating, comment) {
+    try {
+      // Yorum boş, 'EMPTY' veya sadece boşluktan ibaretse veritabanına null gönderelim
+      const cleanComment = comment && comment.trim() !== '' && comment !== 'EMPTY' ? comment.trim() : null
+
+      const { data, error } = await supabase
+        .from('game_reviews')
+        .upsert(
+          { 
+            user_id: userId, 
+            game_id: gameId, 
+            rating, 
+            comment: cleanComment, 
+            is_approved: true, 
+            created_at: new Date() 
+          },
+          { onConflict: 'user_id,game_id' }
+        )
+        .select()
+
+      if (error) throw error
+      return { success: true, data: data[0] }
+    } catch (error) {
+      console.error('İnceleme kaydedilemedi:', error.message)
+      return { success: false, error: error.message }
+    }
+  },
+
+  /**
+   * İncelemeyi siler (Admin veya Kullanıcı)
+   */
+  async deleteGameReview(reviewId) {
+    try {
+      const { error } = await supabase
+        .from('game_reviews')
+        .delete()
+        .eq('id', reviewId)
+
+      if (error) throw error
+      return { success: true }
+    } catch (error) {
+      console.error('İnceleme silinemedi:', error.message)
+      return { success: false, error: error.message }
     }
   }
 }

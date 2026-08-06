@@ -46,6 +46,16 @@ onMounted(async () => {
   isLoading.value = false
 })
 
+// Ortalama puan hesaplama yardımcı fonksiyonu
+const calculateRating = (reviews) => {
+  if (!reviews || reviews.length === 0) return { average: '0.0', count: 0 }
+  const sum = reviews.reduce((acc, curr) => acc + curr.rating, 0)
+  return {
+    average: (sum / reviews.length).toFixed(1),
+    count: reviews.length
+  }
+}
+
 const filteredListings = computed(() => {
   return listings.value.filter(item => {
     const gameTitle = item.games?.title || ''
@@ -128,7 +138,12 @@ const goToDetail = (id) => {
 
         <div class="listing-info">
           <div class="listing-header-row">
-            <h3 class="game-title">{{ item.games?.title || 'Bilinmeyen Oyun' }}</h3>
+            <div class="title-and-rating">
+              <h3 class="game-title">{{ item.games?.title || 'Bilinmeyen Oyun' }}</h3>
+              <span class="card-rating-badge" v-if="calculateRating(item.games?.game_reviews).count > 0">
+                ⭐ {{ calculateRating(item.games?.game_reviews).average }}
+              </span>
+            </div>
             <span class="price">{{ item.price }} TL</span>
           </div>
 
@@ -350,11 +365,28 @@ const goToDetail = (id) => {
   gap: 0.5rem;
 }
 
+.title-and-rating {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
 .game-title {
   margin: 0;
   font-size: 1.15rem;
   color: #0f172a;
   font-weight: 700;
+}
+
+.card-rating-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  align-self: flex-start;
 }
 
 .price {
