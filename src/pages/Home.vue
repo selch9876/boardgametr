@@ -273,4 +273,39 @@ const router = useRouter()
 .coming-soon {
   color: #94a3b8;
 }
+
+/* --- MOBİL UYUMLU HERO DÜZENLEMELERİ --- */
+@media (max-width: 600px) {
+  .hero-section {
+    padding: 3rem 1.5rem; /* Mobilde kenar boşluklarını daralt */
+  }
+
+  .badge {
+    font-size: 0.75rem; /* Fontu küçült */
+    padding: 0.4rem 0.8rem;
+    white-space: normal; /* Metnin alt satıra geçmesine izin ver */
+    display: inline-block; /* Taşmayı önlemek için */
+    line-height: 1.2;
+    margin-bottom: 1rem;
+  }
+
+  .hero-content h1 {
+    font-size: 2.2rem; /* Başlığı mobilde küçült */
+    margin: 0.5rem 0;
+  }
+
+  .hero-content p {
+    font-size: 1rem; /* Metni mobilde küçült */
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-buttons {
+    flex-direction: column; /* Butonları alt alta al */
+    gap: 0.8rem;
+  }
+  
+  .primary-btn, .secondary-btn {
+    width: 100%; /* Butonları tam genişlik yap */
+  }
+}
 </style>

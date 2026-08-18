@@ -12,6 +12,7 @@ const router = useRouter()
 
 const user = ref(null)
 const profile = ref(null)
+const myListings = ref([])
 const isLoading = ref(true)
 const errorMessage = ref(null)
 
@@ -27,7 +28,7 @@ onMounted(async () => {
 
   user.value = session.user
 
-  // 2. Profiles tablosundan kullanıcı detaylarını (username, reputation_score vb.) çek
+  // 2. Profiles tablosundan kullanıcı detaylarını çek
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
     .select('*')
@@ -40,6 +41,17 @@ onMounted(async () => {
     profile.value = profileData
   }
 
+  // 3. Kullanıcının açtığı ilanları marketService mantığıyla çek
+  const { data: listingsData, error: listingsError } = await supabase
+    .from('listings')
+    .select('*, games(title)')
+    .eq('seller_id', session.user.id)
+    .order('created_at', { ascending: false })
+
+  if (!listingsError && listingsData) {
+    myListings.value = listingsData
+  }
+
   isLoading.value = false
 })
 
@@ -50,6 +62,11 @@ const handleLogout = async () => {
 
 const goToCollection = () => {
   router.push('/profile/collection')
+}
+
+// Yeni ilan verme sayfasına yönlendirme (Router yolunuza göre burayı /marketplace/new veya /marketplace/create yapabilirsiniz)
+const goToNewListing = () => {
+  router.push('/marketplace/create') 
 }
 </script>
 
@@ -79,6 +96,7 @@ const goToCollection = () => {
 
       <!-- Hızlı Erişim Menü Kartları -->
       <div class="profile-menu-grid">
+        <!-- Koleksiyon Kartı -->
         <div class="menu-card clickable" @click="goToCollection">
           <div class="icon">📦</div>
           <div class="menu-info">
@@ -86,6 +104,40 @@ const goToCollection = () => {
             <p>Sahip olduğun oyunları yönet, istek listeni incele.</p>
           </div>
           <div class="arrow">→</div>
+        </div>
+      </div>
+
+      <!-- İlanlarım Bölümü -->
+      <div class="listings-section-card">
+        <div class="section-header">
+          <div class="section-title-wrapper">
+            <div class="icon-small">🏷️</div>
+            <div>
+              <h3>İlanlarım</h3>
+              <p>Pazar yerinde oluşturduğun aktif ve onay bekleyen ilanların.</p>
+            </div>
+          </div>
+          <!-- Buton yönlendirmesi düzeltildi -->
+          <button class="add-listing-btn" @click="goToNewListing">+ Yeni İlan</button>
+        </div>
+
+        <div v-if="myListings.length === 0" class="empty-listings">
+          Henüz pazar yerinde oluşturulmuş bir ilanınız yok.
+        </div>
+
+        <div v-else class="listings-list">
+          <div v-for="item in myListings" :key="item.id" class="listing-item">
+            <div class="listing-details">
+              <h4>{{ item.games?.title || 'Masa Oyunu' }}</h4>
+              <p class="listing-meta-info">
+                <strong>{{ item.price }} TL</strong> • 
+                <span :class="item.status === 'approved' ? 'status-approved' : 'status-pending'">
+                  {{ item.status === 'approved' ? 'Onaylandı ✅' : 'Onay Bekliyor ⏳' }}
+                </span>
+              </p>
+            </div>
+            <button class="edit-btn" @click="router.push(`/marketplace/edit/${item.id}`)">Düzenle / Yönet ⚙️</button>
+          </div>
         </div>
       </div>
     </div>
@@ -243,6 +295,139 @@ const goToCollection = () => {
   font-size: 1.2rem;
   color: #94a3b8;
   font-weight: 700;
+}
+
+.listings-section-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.section-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.icon-small {
+  font-size: 1.5rem;
+  background: #f1f5f9;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.section-title-wrapper h3 {
+  margin: 0 0 0.15rem 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.section-title-wrapper p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.add-listing-btn {
+  background: #42b983;
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.add-listing-btn:hover {
+  background: #369c6d;
+}
+
+.listings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.listing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  gap: 1rem;
+}
+
+.listing-details h4 {
+  margin: 0 0 0.25rem 0;
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.listing-meta-info {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.status-approved {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.status-pending {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.edit-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.edit-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.empty-listings {
+  text-align: center;
+  color: #64748b;
+  padding: 1.5rem 0;
+  font-size: 0.95rem;
 }
 
 .state-box {

@@ -176,6 +176,12 @@ const averageRating = computed(() => {
   return (sum / reviews.value.length).toFixed(1)
 })
 
+// Sadece yazılı yorum içeren değerlendirmeleri filtreleyen computed property
+const filteredReviews = computed(() => {
+  if (!reviews.value) return []
+  return reviews.value.filter(r => r.comment && r.comment.trim() !== '' && r.comment !== 'EMPTY')
+})
+
 // Nokta ile yarım kalmayı önleyen, karakter limitli ve akıllı özet fonksiyonu
 const oyunOzeti = computed(() => {
   if (!game.value || !game.value.description) return ''
@@ -387,20 +393,19 @@ const formatliAciklama = computed(() => {
           Bu oyun için puan vermek ve inceleme yazmak için lütfen <router-link to="/auth">giriş yapın</router-link>.
         </div>
 
-        <!-- İncelemeler Listesi -->
-        <div v-if="reviews.length > 0" class="reviews-list">
-          <div v-for="review in reviews" :key="review.id" class="review-item">
+        <!-- İncelemeler Listesi (Sadece yazılı yorumu olanlar gösterilir) -->
+        <div v-if="filteredReviews.length > 0" class="reviews-list">
+          <div v-for="review in filteredReviews" :key="review.id" class="review-item">
             <div class="review-header">
               <span class="reviewer-name">{{ review.profiles?.username || 'Topluluk Üyesi' }}</span>
               <div class="review-rating-stars" v-text="'⭐'.repeat(review.rating)"></div>
             </div>
-            <!-- Yalnızca yazılı yorum varsa gösterilir -->
-            <p class="review-comment" v-if="review.comment && review.comment.trim() !== ''">{{ review.comment }}</p>
+            <p class="review-comment">{{ review.comment }}</p>
             <span class="review-date">{{ new Date(review.created_at).toLocaleDateString('tr-TR') }}</span>
           </div>
         </div>
         <div v-else class="no-reviews-box">
-          💬 Bu oyun için henüz bir değerlendirme yapılmamış. İlk değerlendirmeyi sen yap!
+          💬 Bu oyun için henüz yazılı bir değerlendirme yapılmamış. İlk değerlendirmeyi sen yaz!
         </div>
       </div>
 
@@ -943,5 +948,48 @@ const formatliAciklama = computed(() => {
 
 .full-text-content :deep(a:hover) {
   text-decoration: underline;
+}
+
+/* --- MOBİL UYUMLU İNCELEME FORMU DÜZENLEMELERİ --- */
+.rating-select-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap; /* Mobilde alt alta kaymasını sağlar */
+}
+
+.rating-select {
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.95rem;
+  background: #f8fafc;
+  max-width: 100%; /* Kutudan taşmayı önler */
+  box-sizing: border-box;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap; /* Mobilde butonların taşmasını önler */
+}
+
+.submit-review-btn, .delete-review-btn {
+  flex: 1; /* Mobilde butonların esnek ve tam genişlikte olmasını sağlar */
+  min-width: 130px;
+}
+
+/* Mobil Ekranlar İçin Ekstra Kural */
+@media (max-width: 600px) {
+  .rating-select-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+  
+  .rating-select {
+    width: 100%; /* Mobilde select kutusu tam genişlik olur, taşma yapmaz */
+  }
 }
 </style>

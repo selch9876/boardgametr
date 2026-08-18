@@ -21,6 +21,38 @@
         </div>
       </router-link>
 
+      <!-- CANLI ARAMA ÇUBUĞU -->
+      <div class="nav-search-container">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input 
+            type="text" 
+            v-model="searchQuery" 
+            @input="handleSearchInput"
+            @focus="isSearchFocused = true"
+            @blur="handleSearchBlur"
+            placeholder="Katalogda oyun ara..." 
+            class="nav-search-input"
+          />
+        </div>
+
+        <!-- Anlık Arama Öneri Kutusu (Dropdown) -->
+        <div v-if="isSearchFocused && searchResults.length > 0 && searchQuery.trim() !== ''" class="search-dropdown">
+          <div 
+            v-for="game in searchResults" 
+            :key="game.id" 
+            class="search-result-item"
+            @mousedown.prevent="selectGame(game.id)"
+          >
+            <img :src="game.thumbnail_url || '/placeholder.jpg'" alt="" class="result-thumb" @error="(e) => e.target.src = '/placeholder.jpg'" />
+            <div class="result-info">
+              <span class="result-title">{{ game.title }}</span>
+              <span class="result-category" v-if="game.categories">🏷️ {{ game.categories.name }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- NAVİGASYON VE DİNAMİK AUTH / ROZET ALANI -->
       <nav class="nav-links">
         <router-link to="/">Ana Sayfa</router-link>
@@ -67,6 +99,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from './services/supabase'
+import { marketService } from './services/marketService'
 
 const router = useRouter()
 const route = useRoute()
@@ -74,6 +107,48 @@ const route = useRoute()
 const user = ref(null)
 const userRole = ref('Yeni Üye') // Varsayılan
 const isAdmin = ref(false)
+
+// Canlı Arama State'leri
+const searchQuery = ref('')
+const searchResults = ref([])
+const isSearchFocused = ref(false)
+let searchTimeout = null
+
+// Kullanıcı yazdıkça çalışacak anlık arama fonksiyonu (Debounce korumalı)
+const handleSearchInput = () => {
+  clearTimeout(searchTimeout)
+  
+  if (!searchQuery.value || searchQuery.value.trim() === '') {
+    searchResults.value = []
+    return
+  }
+
+  // Performans için 250ms gecikme ile arama yap
+  searchTimeout = setTimeout(async () => {
+    const res = await marketService.getAllGames()
+    if (res.success && res.data) {
+      const query = searchQuery.value.toLowerCase().trim()
+      searchResults.value = res.data
+        .filter(g => g.title.toLowerCase().includes(query))
+        .slice(0, 5) // Maksimum 5 öneri göster
+    }
+  }, 250)
+}
+
+// Input odak dışına çıktığında dropdown'ı kapat (tıklama algılanabilmesi için gecikmeli)
+const handleSearchBlur = () => {
+  setTimeout(() => {
+    isSearchFocused.value = false
+  }, 200)
+}
+
+// Önerilen bir oyuna tıklandığında detay sayfasına yönlendir
+const selectGame = (gameId) => {
+  searchQuery.value = ''
+  searchResults.value = []
+  isSearchFocused.value = false
+  router.push(`/games/${gameId}`)
+}
 
 // Kullanıcı rolünü ve admin durumunu Supabase profiles tablosundan çekme fonksiyonu
 const fetchUserProfile = async (userId) => {
@@ -132,66 +207,25 @@ const handleSignOut = async () => {
 </script>
 
 <style>
-/* Genel Sıfırlama ve Fontlar */
+/* Genel Sıfırlama ve Responsive Temel Ayarlar */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   font-family: Arial, sans-serif;
   margin: 0;
   background-color: #f4f6f8;
   color: #2c3e50;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 #app {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1rem;
-}
-
-.nav-links .auth-link-btn {
-  background-color: #e53e3e;
-  color: white !important;
-  padding: 0.4rem 1rem;
-  border-radius: 6px;
-  border: none;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.nav-links .auth-link-btn:hover,
-.nav-links .auth-link-btn.router-link-active {
-  background-color: #c53030;
-  color: white !important;
-}
-
-.logout-btn {
-  background-color: #4a5568 !important;
-}
-
-.logout-btn:hover {
-  background-color: #2d3748 !important;
-}
-
-.profile-nav-link,
-.admin-nav-link {
-  font-weight: 600;
-  color: #334155 !important;
-}
-
-.admin-nav-link {
-  color: #b91c1c !important;
-}
-
-.profile-nav-link:hover,
-.profile-nav-link.router-link-active {
-  color: #42b983 !important;
-}
-
-.admin-nav-link:hover,
-.admin-nav-link.router-link-active {
-  color: #991b1b !important;
+  width: 100%;
 }
 
 .main-header {
@@ -201,9 +235,108 @@ body {
   padding: 1.5rem 0;
   border-bottom: 1px solid #eaeaea;
   margin-bottom: 2rem;
+  position: relative;
+  flex-wrap: wrap; /* Mobilde taşmayı önlemek için esnek sarma */
+  gap: 1rem;
 }
 
-/* --- YENİ LOGO STİLLERİ --- */
+/* --- CANLI ARAMA ALANI STİLLERİ --- */
+.nav-search-container {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 300px;
+  margin: 0 1rem;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.nav-search-input {
+  width: 100%;
+  padding: 0.45rem 0.8rem 0.45rem 2.2rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.9rem;
+  outline: none;
+  background-color: #fff;
+  transition: all 0.2s;
+}
+
+.nav-search-input:focus {
+  border-color: #42b983;
+  box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.15);
+}
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: #f8fafc;
+}
+
+.result-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 6px;
+  background-color: #f1f5f9;
+}
+
+.result-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.result-category {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+/* --- CANLI ARAMA ALANI BİTİŞ --- */
+
+/* --- LOGO STİLLERİ --- */
 .modern-brand-logo {
   display: flex;
   align-items: center;
@@ -256,12 +389,13 @@ body {
   color: #e53e3e;
   margin-left: 4px;
 }
-/* --- YENİ LOGO STİLLERİ BİTİŞ --- */
+/* --- LOGO STİLLERİ BİTİŞ --- */
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.2rem;
+  flex-wrap: wrap;
 }
 
 .nav-links a {
@@ -269,11 +403,60 @@ body {
   color: #7f8c8d;
   font-weight: 600;
   transition: color 0.2s;
+  font-size: 0.95rem;
 }
 
 .nav-links a:hover,
 .nav-links a.router-link-active {
   color: #42b983;
+}
+
+.nav-links .auth-link-btn {
+  background-color: #e53e3e;
+  color: white !important;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.nav-links .auth-link-btn:hover,
+.nav-links .auth-link-btn.router-link-active {
+  background-color: #c53030;
+  color: white !important;
+}
+
+.logout-btn {
+  background-color: #4a5568 !important;
+}
+
+.logout-btn:hover {
+  background-color: #2d3748 !important;
+}
+
+.profile-nav-link,
+.admin-nav-link {
+  font-weight: 600;
+  color: #334155 !important;
+}
+
+.admin-nav-link {
+  color: #b91c1c !important;
+}
+
+.profile-nav-link:hover,
+.profile-nav-link.router-link-active {
+  color: #42b983 !important;
+}
+
+.admin-nav-link:hover,
+.admin-nav-link.router-link-active {
+  color: #991b1b !important;
 }
 
 .user-badge {
@@ -288,17 +471,35 @@ body {
   gap: 4px;
 }
 
-.badge-dot {
-  width: 6px;
-  height: 6px;
-  background-color: currentColor;
-  border-radius: 50%;
-  display: inline-block;
-}
-
 .badge-site-sahibi { background: linear-gradient(135deg, #fff1f2, #fee2e2); color: #991b1b; border: 1px solid #fecaca; }
 .badge-yonetici { background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #92400e; border: 1px solid #fde68a; }
 .badge-kidemli-tuccar { background: linear-gradient(135deg, #eef2ff, #e0e7ff); color: #3730a3; border: 1px solid #c7d2fe; }
 .badge-kidemli-uye { background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #065f46; border: 1px solid #a7f3d0; }
 .badge-yeni-uye { background: linear-gradient(135deg, #f9fafb, #f3f4f6); color: #4b5563; border: 1px solid #e5e7eb; }
+
+/* --- MOBİL UYUM (RESPONSIVE) MEDYA SORGU --- */
+@media (max-width: 768px) {
+  .main-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 1rem 0;
+  }
+
+  .modern-brand-logo {
+    justify-content: center;
+  }
+
+  .nav-search-container {
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .nav-links {
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #f1f5f9;
+  }
+}
 </style>

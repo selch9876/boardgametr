@@ -21,6 +21,7 @@ const listing = ref({
 const gameTitle = ref('')
 const isLoading = ref(true)
 const isSubmitting = ref(false)
+const isDeleting = ref(false)
 const errorMessage = ref(null)
 
 onMounted(async () => {
@@ -68,23 +69,48 @@ const handleUpdate = async () => {
   isSubmitting.value = true
   errorMessage.value = null
 
+  // İlan güncellendiğinde onay mekanizması gereği statüyü tekrar 'pending' (onay bekliyor) yapabiliriz
   const { error } = await supabase
     .from('listings')
     .update({
       price: parseFloat(listing.value.price),
       condition: listing.value.condition,
       has_sleeves: listing.value.has_sleeves,
-      description: listing.value.description
+      description: listing.value.description,
+      status: 'pending' // Metinli/İçerikli güncellemeler onay havuzuna geri döner
     })
     .eq('id', route.params.id)
 
   if (error) {
     errorMessage.value = 'İlan güncellenirken hata oluştu: ' + error.message
   } else {
-    alert('İlanınız başarıyla güncellendi! 🎉')
-    router.push(`/marketplace/${route.params.id}`)
+    alert('İlanınız güncellendi ve onay sürecine gönderildi! ⏳')
+    router.push('/marketplace')
   }
   isSubmitting.value = false
+}
+
+// İlanı silme fonksiyonu
+const handleDeleteListing = async () => {
+  if (!confirm('Bu ilanı kalıcı olarak silmek istediğinize emin misiniz?')) {
+    return
+  }
+
+  isDeleting.value = true
+  errorMessage.value = null
+
+  const { error } = await supabase
+    .from('listings')
+    .delete()
+    .eq('id', route.params.id)
+
+  if (error) {
+    errorMessage.value = 'İlan silinirken bir hata oluştu: ' + error.message
+    isDeleting.value = false
+  } else {
+    alert('İlanınız başarıyla silindi.')
+    router.push('/marketplace')
+  }
 }
 </script>
 
@@ -128,9 +154,15 @@ const handleUpdate = async () => {
           <textarea v-model="listing.description" rows="4" class="form-input" placeholder="Oyunun kondisyonu veya kutu içeriği hakkında ek bilgi verin..."></textarea>
         </div>
 
-        <button type="submit" class="submit-btn" :disabled="isSubmitting">
-          {{ isSubmitting ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet 💾' }}
-        </button>
+        <div class="action-buttons">
+          <button type="submit" class="submit-btn" :disabled="isSubmitting || isDeleting">
+            {{ isSubmitting ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet & Onaya Gönder 💾' }}
+          </button>
+
+          <button type="button" class="delete-btn" @click="handleDeleteListing" :disabled="isSubmitting || isDeleting">
+            {{ isDeleting ? 'Siliniyor...' : 'İlanı Sil 🗑️' }}
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -150,8 +182,11 @@ const handleUpdate = async () => {
 .form-input:focus { border-color: #42b983; box-shadow: 0 0 0 3px rgba(66, 185, 131, 0.15); }
 .checkbox-group label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; color: #334155; }
 .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: #42b983; cursor: pointer; }
-.submit-btn { background: #42b983; color: white; border: none; padding: 1rem; border-radius: 10px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 1rem; box-shadow: 0 4px 15px rgba(66, 185, 131, 0.3); width: 100%; }
+.action-buttons { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+.submit-btn { background: #42b983; color: white; border: none; padding: 1rem; border-radius: 10px; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(66, 185, 131, 0.3); width: 100%; }
 .submit-btn:hover { background: #369c6d; }
+.delete-btn { background: #fee2e2; color: #dc2626; border: none; padding: 1rem; border-radius: 10px; font-weight: 700; font-size: 1rem; cursor: pointer; width: 100%; transition: background 0.2s; }
+.delete-btn:hover { background: #fecaca; }
 .error-banner { background: #fdf2f2; color: #e74c3c; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-weight: 600; }
 .state { text-align: center; padding: 2rem; color: #64748b; }
 </style>
