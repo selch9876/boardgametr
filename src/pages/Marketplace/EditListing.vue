@@ -91,14 +91,27 @@ const handleUpdate = async () => {
 }
 
 // İlanı silme fonksiyonu
-const handleDeleteListing = async () => {
-  if (!confirm('Bu ilanı kalıcı olarak silmek istediğinize emin misiniz?')) {
+const handleDeleteListing = async (gameId) => {
+  if (!confirm('Bu ilanı ve tüm mağaza fiyat bağlantılarını kalıcı olarak silmek istediğinize emin misiniz?')) {
     return
   }
 
   isDeleting.value = true
   errorMessage.value = null
 
+  // 1. Önce store_listings tablosundaki bu oyuna ait mağaza bağlantılarını temizle
+  if (gameId) {
+    const { error: storeError } = await supabase
+      .from('store_listings')
+      .delete()
+      .eq('game_id', gameId)
+
+    if (storeError) {
+      console.error('Mağaza listelemeleri silinirken hata:', storeError.message)
+    }
+  }
+
+  // 2. Ardından ana ilanı sil
   const { error } = await supabase
     .from('listings')
     .delete()
@@ -108,7 +121,7 @@ const handleDeleteListing = async () => {
     errorMessage.value = 'İlan silinirken bir hata oluştu: ' + error.message
     isDeleting.value = false
   } else {
-    alert('İlanınız başarıyla silindi.')
+    alert('İlanınız ve ilgili tüm mağaza verileri başarıyla silindi.')
     router.push('/marketplace')
   }
 }

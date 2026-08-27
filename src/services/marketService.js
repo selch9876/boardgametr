@@ -210,6 +210,12 @@ export const marketService = {
   /**
    * Pazar yerine yeni bir ilan ekler
    */
+  /**
+   * Pazar yerine yeni bir ilan ekler ve eklenen oyun için mağaza fiyat kayıtlarını otomatik başlatır
+   */
+  /**
+   * Pazar yerine yeni bir ilan ekler ve eklenen oyun için mağaza arama linklerini otomatik oluşturur
+   */
   async createListing(listingData) {
     const { data: { user }, error: userError } = await supabase.auth.getUser()
 
@@ -227,6 +233,7 @@ export const marketService = {
       seller_id: user.id
     }
 
+    // 1. İlanı Kaydet
     const { data, error } = await supabase
       .from('listings')
       .insert([payload])
@@ -237,7 +244,59 @@ export const marketService = {
       return { success: false, data: null, error: error.message }
     }
 
-    return { success: true, data: data[0], error: null }
+    const newListing = data[0]
+
+    // 2. OTOMATİK MAĞAZA LİSTESİ VE ARAMA LİNKİ OLUŞTURUCU
+    if (newListing.game_id) {
+      try {
+        // Oyunun adını games tablosundan çekelim
+        const { data: gameData } = await supabase
+          .from('games')
+          .select('title')
+          .eq('id', newListing.game_id)
+          .single()
+
+        const gameTitle = gameData ? encodeURIComponent(gameData.title) : ''
+
+        // Aktif mağazaları arama şablonlarıyla birlikte çek
+        const { data: stores, error: storesError } = await supabase
+          .from('stores')
+          .select('id, search_url_template')
+
+        if (!storesError && stores && stores.length > 0) {
+          for (const store of stores) {
+            const { data: existingListing } = await supabase
+              .from('store_listings')
+              .select('id')
+              .eq('game_id', newListing.game_id)
+              .eq('store_id', store.id)
+              .single()
+
+            if (!existingListing) {
+              // Arama şablonuna oyun adını yerleştir (örn: ?q=Azul+Mini)
+              let generatedUrl = null
+              if (store.search_url_template && gameTitle) {
+                generatedUrl = store.search_url_template.replace('{query}', gameTitle)
+              }
+
+              await supabase
+                .from('store_listings')
+                .insert([{
+                  game_id: newListing.game_id,
+                  store_id: store.id,
+                  price: 0,
+                  in_stock: false,
+                  product_url: generatedUrl // Otomatik oluşturulan arama linki
+                }])
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Otomatik arama linkleri oluşturulurken hata:', err.message)
+      }
+    }
+
+    return { success: true, data: newListing, error: null }
   },
 
   /**
@@ -499,5 +558,28 @@ export const marketService = {
       console.error('İnceleme silinemedi:', error.message)
       return { success: false, error: error.message }
     }
-  }
+  },
+
+  /**
+   * Belirli bir oyuna ait yasal mağazaların sıfır fiyatlarını getirir
+   */
+  async getStoreListingsByGameId(gameId) {
+    try {
+      const { data, error } = await supabase
+        .from('store_listings')
+        .select(`
+          id, price, product_url, in_stock, updated_at,
+          stores ( id, name, logo_url, website_url )
+        `)
+        .eq('game_id', gameId)
+        .order('price', { ascending: true }) // En ucuz fiyat en üstte çıksın
+
+      if (error) throw error
+      return { success: true, data: data || [] }
+    } catch (error) {
+      console.error('Mağaza fiyatları çekilemedi:', error.message)
+      return { success: false, error: error.message, data: [] }
+    }
+  },
+  
 }
