@@ -33,16 +33,23 @@ async function updatePrices() {
       const storeName = item.stores?.name || '';
       const isGoblin = storeName.toLowerCase().includes('goblin');
       const isNeoTroy = storeName.toLowerCase().includes('neotroy');
-      const isDaVinci = storeName.toLowerCase().includes('davinci') || storeName.toLowerCase().includes('kutu oyunları');
 
       console.log(`\n----------------------------------------`);
       console.log(`🎮 Ürün: ${gameTitle} | Mağaza: ${storeName}`);
 
       let targetProductUrl = item.product_url || '';
       const urlLower = targetProductUrl.toLowerCase();
+      const gameTitleLower = gameTitle.toLowerCase();
+      
+      // Oyun adındaki anahtar kelimeleri çıkar (3 harften uzun olanlar)
+      const titleKeywords = gameTitleLower.split(/\s+/).filter(w => w.length > 2);
+      
+      // Kayıtlı URL, oyunun adındaki anahtar kelimelerden en az birini içeriyor mu?
+      const urlMatchesGame = titleKeywords.some(keyword => urlLower.includes(keyword));
 
-      // Hatalı, sleeve, ek paket veya genel arama URL'lerini tespit edip sıfırla ve arama moduna geç
+      // Hatalı, sleeve, ek paket, genel arama veya yanlış eşleşen URL'leri tespit edip arama moduna geç
       const isBadUrl = !targetProductUrl.startsWith('http') || 
+                       !urlMatchesGame || 
                        urlLower.includes('yamali-yorgan') || 
                        urlLower.includes('/search') || 
                        urlLower.includes('?s=') || 
@@ -54,9 +61,9 @@ async function updatePrices() {
                        urlLower.includes('koruyucu');
 
       if (isBadUrl) {
-        console.log(`⚠️ Kayıtlı URL hatalı/aksesuar (${targetProductUrl}), arama sayfasına yönlendiriliyor...`);
+        console.log(`⚠️ Kayıtlı URL hatalı veya oyunla uyuşmuyor (${targetProductUrl}), arama sayfasına yönlendiriliyor...`);
         if (isNeoTroy) {
-          targetProductUrl = `https://neotroygames.com/arama?q=${encodeURIComponent(gameTitle)}`;
+          targetProductUrl = `https://neotroygames.com/kutu-oyunlari/?product_cat=&s=${encodeURIComponent(gameTitle)}`;
         } else if (isGoblin) {
           targetProductUrl = `https://goblin-store.com/search?q=${encodeURIComponent(gameTitle)}`;
         } else {
@@ -88,7 +95,7 @@ async function updatePrices() {
         await page.waitForTimeout(2000);
       }
 
-      // Eğer hala arama sayfasındaysak, doğru ana oyun linkini bul ve veritabanına zorla yaz
+      // Eğer hala arama sayfasındaysak, doğru ana oyun linkini bul
       if (page.url().includes('search') || page.url().includes('arama') || page.url().includes('?s=')) {
         console.log('🔍 Arama sonuçlarından doğru ana oyun filtreleniyor...');
 
@@ -99,8 +106,9 @@ async function updatePrices() {
 
           const productLinks = links.filter(a => {
             const href = a.href ? a.href.toLowerCase() : '';
-            if (href.includes('yamali-yorgan') || href.includes('/arama')) return false;
-            return href.includes('/urun/') || href.includes('/products/') || href.includes('/kutu-oyunu/') || href.includes('/oyun/');
+            if (!href.startsWith('http')) return false;
+            if (href.includes('yamali-yorgan') || href.includes('/arama') || href.includes('/search')) return false;
+            return href.includes('/urun/') || href.includes('/products/') || href.includes('/kutu-oyunu/') || href.includes('/oyun/') || a.querySelector('img');
           });
 
           // Sleeve, eklenti ve aksesuarları ele
@@ -136,6 +144,9 @@ async function updatePrices() {
             .eq('id', item.id);
 
           await page.goto(targetProductUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } else {
+          console.log(`⚠️ Arama sonuçlarında "${gameTitle}" ile eşleşen ürün bulunamadı, bu ürün atlanıyor.`);
+          continue;
         }
       }
 
@@ -204,7 +215,6 @@ async function updatePrices() {
 
       console.log(`[Güncellendi] Fiyat: ${cleanPrice} TL | Stok: ${inStock ? 'Var' : 'Yok'}`);
 
-      // Kesin olarak veritabanına yaz
       await supabase
         .from('store_listings')
         .update({
