@@ -41,13 +41,9 @@ async function updatePrices() {
       const urlLower = targetProductUrl.toLowerCase();
       const gameTitleLower = gameTitle.toLowerCase();
       
-      // Oyun adındaki anahtar kelimeleri çıkar (3 harften uzun olanlar)
       const titleKeywords = gameTitleLower.split(/\s+/).filter(w => w.length > 2);
-      
-      // Kayıtlı URL, oyunun adındaki anahtar kelimelerden en az birini içeriyor mu?
       const urlMatchesGame = titleKeywords.some(keyword => urlLower.includes(keyword));
 
-      // Hatalı, sleeve, ek paket, genel arama veya yanlış eşleşen URL'leri tespit edip arama moduna geç
       const isBadUrl = !targetProductUrl.startsWith('http') || 
                        !urlMatchesGame || 
                        urlLower.includes('yamali-yorgan') || 
@@ -124,11 +120,11 @@ async function updatePrices() {
 
           if (validLinks.length === 0) return null;
 
-          // Kelime eşleşmesine göre en doğru ürünü seç
+          // Kesin eşleşme zorunluluğu (.every) ile yanlış ürün seçilmesini engelle
           let bestMatch = validLinks.find(link => {
             const href = link.href.toLowerCase();
             const text = link.innerText ? link.innerText.toLowerCase() : '';
-            return titleWords.some(word => href.includes(word) || text.includes(word));
+            return titleWords.every(word => href.includes(word) || text.includes(word));
           });
 
           return bestMatch ? bestMatch.href : null;
@@ -145,7 +141,7 @@ async function updatePrices() {
 
           await page.goto(targetProductUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         } else {
-          console.log(`⚠️ Arama sonuçlarında "${gameTitle}" ile eşleşen ürün bulunamadı, bu ürün atlanıyor.`);
+          console.log(`⚠️ Arama sonuçlarında "${gameTitle}" ile tam eşleşen ürün bulunamadı, bu ürün atlanıyor.`);
           continue;
         }
       }
