@@ -1,0 +1,32 @@
+name: Board Game Price Updater
+
+on:
+  schedule:
+    # Her gün Türkiye saati ile sabah 09:00 ve akşam 21:00'de çalışır (UTC saatine göre ayarlanmıştır)
+    - cron: '0 6,18 * * *'
+  workflow_dispatch: # GitHub panelinden dilediğin an tek tıkla manuel test edebilmeni sağlar
+
+jobs:
+  update-prices:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo'yu Koda Çek
+        uses: actions/checkout@v4
+
+      - name: Node.js Kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bağımlılıkları Yükle
+        run: npm install
+
+      - name: Playwright Tarayıcılarını Kur
+        run: npx playwright install --with-deps chromium
+        
+      - name: Botu Çalıştır
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node update-prices.js
