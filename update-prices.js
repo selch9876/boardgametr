@@ -107,7 +107,6 @@ async function updatePrices() {
             return href.includes('/urun/') || href.includes('/products/') || href.includes('/kutu-oyunu/') || href.includes('/oyun/') || a.querySelector('img');
           });
 
-          // Sleeve, eklenti ve aksesuarları ele
           const validLinks = productLinks.filter(link => {
             const href = link.href.toLowerCase();
             const text = link.innerText ? link.innerText.toLowerCase() : '';
@@ -120,11 +119,15 @@ async function updatePrices() {
 
           if (validLinks.length === 0) return null;
 
-          // Kesin eşleşme zorunluluğu (.every) ile yanlış ürün seçilmesini engelle
+          // GÜNCELLENEN KONTROL: Arama sonuçlarında adında en azından aranan kelimelerden biri geçen ilk ürünü seç. 
+          // İçinde alakasız ürünler (men-nefer vb.) varsa kesinlikle pas geç.
           let bestMatch = validLinks.find(link => {
             const href = link.href.toLowerCase();
             const text = link.innerText ? link.innerText.toLowerCase() : '';
-            return titleWords.every(word => href.includes(word) || text.includes(word));
+            
+            // Eğer aranan kelime URL'de veya metinde kesinlikle geçmiyorsa bu ürünü reddet
+            const matchesAnyWord = titleWords.some(word => href.includes(word) || text.includes(word));
+            return matchesAnyWord;
           });
 
           return bestMatch ? bestMatch.href : null;
@@ -141,7 +144,7 @@ async function updatePrices() {
 
           await page.goto(targetProductUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         } else {
-          console.log(`⚠️ Arama sonuçlarında "${gameTitle}" ile tam eşleşen ürün bulunamadı, bu ürün atlanıyor.`);
+          console.log(`⚠️ Arama sonuçlarında "${gameTitle}" ile eşleşen geçerli ürün bulunamadı, bu ürün atlanıyor.`);
           continue;
         }
       }
