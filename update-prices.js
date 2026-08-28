@@ -95,7 +95,7 @@ async function updatePrices() {
         let foundLink = await page.evaluate(({ searchTitle }) => {
           const links = Array.from(document.querySelectorAll('a'));
           const cleanTitle = searchTitle ? searchTitle.toLowerCase().trim() : '';
-          const slugPart = cleanTitle.replace(/[^a-z0-9]+/g, '-');
+          const titleWords = cleanTitle.split(/\s+/).filter(w => w.length > 2);
 
           const productLinks = links.filter(a => {
             const href = a.href ? a.href.toLowerCase() : '';
@@ -114,11 +114,16 @@ async function updatePrices() {
             return !isAccessory && !isExpansion;
           });
 
-          if (validLinks.length === 0) return productLinks.length > 0 ? productLinks[0].href : null;
+          if (validLinks.length === 0) return null;
 
-          // Slug veya isim eşleşmesi arayan en iyi eşi bul
-          let matched = validLinks.find(link => link.href.toLowerCase().includes(slugPart));
-          return matched ? matched.href : validLinks[0].href;
+          // Kelime eşleşmesine göre en doğru ürünü seç
+          let bestMatch = validLinks.find(link => {
+            const href = link.href.toLowerCase();
+            const text = link.innerText ? link.innerText.toLowerCase() : '';
+            return titleWords.some(word => href.includes(word) || text.includes(word));
+          });
+
+          return bestMatch ? bestMatch.href : null;
         }, { searchTitle: gameTitle });
 
         if (foundLink) {
